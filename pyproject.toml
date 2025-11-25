@@ -1,0 +1,27 @@
+[tool.ruff]
+exclude = [
+    "env",
+    ".git",
+    "__init__.py"]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "SIM"]
+fixable = ["ALL"]
+
+[tool.pytest.ini_options]
+pythonpath = "env"
+DJANGO_SETTINGS_MODULE = "config.settings"
+DJANGO_CONFIGURATION = "Test"
+addopts = "-vvv"
+
+
+[tool.coverage.report]
+exclude_also = [
+    "def __repr__",
+    "def __str__",
+]
+
+[tool.pylint.'MESSAGES CONTROL']
+disable = "too-many-arguments, not-callable, missing-function-docstring, missing-module-docstring"

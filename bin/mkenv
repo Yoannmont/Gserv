@@ -1,0 +1,29 @@
+#!/bin/bash
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BACKEND_DIR="$(dirname "$SCRIPT_DIR")"
+
+ENV_DIR="$BACKEND_DIR/env"
+REQS_DIR="$BACKEND_DIR/requirements"
+MODE=${1:-dev}
+
+if [ -d "$ENV_DIR" ]; then
+    echo "Deleting found env"
+    rm -rf "$ENV_DIR"
+fi
+
+virtualenv "$ENV_DIR" -p python3.12
+
+source "$ENV_DIR/bin/activate"
+
+# installing uv
+pip install uv
+
+# installing dependencies
+if [ "$MODE" = "prod" ]; then
+  echo "Prod mode"
+  uv pip sync "$REQS_DIR/prod.lock"
+else
+  echo "Dev mode"
+  uv pip sync "$REQS_DIR/dev.lock"
+fi

@@ -1,0 +1,11 @@
+-r requirements_prod.in
+
+pytest==9.0.1
+coverage==7.12.0
+pytest-cov==7.0.0
+ruff==0.14.6
+faker==38.2.0
+factory-boy==3.3.3
+freezegun==1.5.5
+pytest-mock==3.15.1
+pytest-django==4.11.1

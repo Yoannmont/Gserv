@@ -1,0 +1,13 @@
+#!/bin/bash
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BACKEND_DIR="$(dirname "$SCRIPT_DIR")"
+
+ENV_DIR="$BACKEND_DIR/env"
+REQS_DIR="$BACKEND_DIR/requirements"
+
+echo "Compiling"
+
+source "$ENV_DIR/bin/activate"
+uv pip compile "$REQS_DIR/requirements_prod.in" -o "$REQS_DIR/prod.lock"
+uv pip compile "$REQS_DIR/requirements_dev.in" -o "$REQS_DIR/dev.lock"
