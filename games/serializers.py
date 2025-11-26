@@ -4,6 +4,10 @@ from games.models import Game, GameConfiguration, GameMod, GameVersion
 
 
 class GameVersionSerializer(serializers.ModelSerializer):
+    game_id = serializers.PrimaryKeyRelatedField(
+        queryset=Game.objects.all(), source="game", write_only=True
+    )
+
     class Meta:
         model = GameVersion
         fields = [
@@ -14,6 +18,7 @@ class GameVersionSerializer(serializers.ModelSerializer):
             "is_recommended",
             "changelog",
             "created_at",
+            "game_id",
         ]
         read_only_fields = ["id", "created_at"]
 

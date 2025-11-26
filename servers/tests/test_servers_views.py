@@ -1,3 +1,4 @@
+from games.models import GameMod
 import pytest
 from django.urls import reverse
 from rest_framework import status
@@ -15,9 +16,8 @@ from servers.tests.servers_factories import (
 @pytest.mark.django_db
 class TestServerInstanceViewSet:
     def test_list_servers_as_owner(self, authenticated_client, user):
-        """Test liste des serveurs par le propriétaire"""
         ServerInstanceFactory.create_batch(3, owner=user)
-        ServerInstanceFactory()  # Serveur d'un autre user
+        ServerInstanceFactory()
 
         url = reverse("server-list")
         response = authenticated_client.get(url)
@@ -26,10 +26,9 @@ class TestServerInstanceViewSet:
         assert len(response.data["results"]) == 3
 
     def test_list_public_servers(self, authenticated_client, user):
-        """Test que les serveurs publics sont visibles"""
         ServerInstanceFactory.create_batch(2, owner=user)
-        ServerInstanceFactory(is_public=True)  # Serveur public d'un autre user
-        ServerInstanceFactory(is_public=False)  # Serveur privé invisible
+        ServerInstanceFactory(is_public=True)
+        ServerInstanceFactory(is_public=False)
 
         url = reverse("server-list")
         response = authenticated_client.get(url)
@@ -38,7 +37,6 @@ class TestServerInstanceViewSet:
         assert len(response.data["results"]) == 3
 
     def test_list_servers_as_admin(self, admin_client):
-        """Test que les admins voient tous les serveurs"""
         ServerInstanceFactory.create_batch(5)
 
         url = reverse("server-list")
@@ -48,7 +46,6 @@ class TestServerInstanceViewSet:
         assert len(response.data["results"]) == 5
 
     def test_create_server(self, authenticated_client, user):
-        """Test création d'un serveur"""
         game = GameFactory()
         version = GameVersionFactory(game=game)
 
@@ -71,7 +68,6 @@ class TestServerInstanceViewSet:
         assert response.data["name"] == "My Server"
 
     def test_retrieve_own_server(self, authenticated_client, user):
-        """Test détail de son propre serveur"""
         server = ServerInstanceFactory(owner=user)
 
         url = reverse("server-detail", kwargs={"pk": server.id})
@@ -81,7 +77,6 @@ class TestServerInstanceViewSet:
         assert response.data["id"] == server.id
 
     def test_retrieve_other_user_private_server_forbidden(self, authenticated_client):
-        """Test qu'on ne peut pas voir le serveur privé d'un autre user"""
         other_user = UserFactory()
         server = ServerInstanceFactory(owner=other_user, is_public=False)
 
@@ -91,7 +86,6 @@ class TestServerInstanceViewSet:
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
     def test_update_own_server(self, authenticated_client, user):
-        """Test mise à jour de son serveur"""
         server = ServerInstanceFactory(owner=user, name="Old Name")
 
         url = reverse("server-detail", kwargs={"pk": server.id})
@@ -104,7 +98,6 @@ class TestServerInstanceViewSet:
         assert server.name == "New Name"
 
     def test_update_other_user_server_forbidden(self, authenticated_client):
-        """Test qu'on ne peut pas modifier le serveur d'un autre user"""
         other_user = UserFactory()
         server = ServerInstanceFactory(owner=other_user)
 
@@ -116,7 +109,6 @@ class TestServerInstanceViewSet:
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
     def test_delete_own_server(self, authenticated_client, user):
-        """Test suppression de son serveur"""
         server = ServerInstanceFactory(owner=user)
 
         url = reverse("server-detail", kwargs={"pk": server.id})
@@ -132,7 +124,6 @@ class TestServerInstanceViewSet:
 @pytest.mark.django_db
 class TestServerActions:
     def test_start_server(self, authenticated_client, user):
-        """Test démarrage d'un serveur"""
         server = ServerInstanceFactory(owner=user, status="stopped")
 
         url = reverse("server-start", kwargs={"pk": server.id})
@@ -143,7 +134,6 @@ class TestServerActions:
         assert server.status == "starting"
 
     def test_start_already_running_server(self, authenticated_client, user):
-        """Test erreur si serveur déjà démarré"""
         server = ServerInstanceFactory(owner=user, status="running")
 
         url = reverse("server-start", kwargs={"pk": server.id})
@@ -152,7 +142,6 @@ class TestServerActions:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
     def test_stop_server(self, authenticated_client, user):
-        """Test arrêt d'un serveur"""
         server = ServerInstanceFactory(owner=user, status="running")
 
         url = reverse("server-stop", kwargs={"pk": server.id})
@@ -163,7 +152,6 @@ class TestServerActions:
         assert server.status == "stopping"
 
     def test_restart_server(self, authenticated_client, user):
-        """Test redémarrage d'un serveur"""
         server = ServerInstanceFactory(owner=user, status="running")
 
         url = reverse("server-restart", kwargs={"pk": server.id})
@@ -172,7 +160,6 @@ class TestServerActions:
         assert response.status_code == status.HTTP_200_OK
 
     def test_update_server_stopped(self, authenticated_client, user):
-        """Test mise à jour d'un serveur arrêté"""
         server = ServerInstanceFactory(owner=user, status="stopped")
 
         url = reverse("server-update-server", kwargs={"pk": server.id})
@@ -183,7 +170,6 @@ class TestServerActions:
         assert server.status == "updating"
 
     def test_update_running_server_without_force(self, authenticated_client, user):
-        """Test erreur de mise à jour sans force sur serveur en cours"""
         server = ServerInstanceFactory(owner=user, status="running")
 
         _server = ServerInstance.objects.first()
@@ -196,7 +182,6 @@ class TestServerActions:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
     def test_get_status_history(self, authenticated_client, user):
-        """Test récupération de l'historique des statuts"""
         server = ServerInstanceFactory(owner=user)
         from servers.tests.servers_factories import ServerStatusFactory
 
@@ -212,7 +197,6 @@ class TestServerActions:
 @pytest.mark.django_db
 class TestServerModsManagement:
     def test_list_server_mods(self, authenticated_client, user):
-        """Test liste des mods d'un serveur"""
         server = ServerInstanceFactory(owner=user)
         ServerModFactory.create_batch(3, server=server)
 
@@ -223,7 +207,6 @@ class TestServerModsManagement:
         assert len(response.data) == 3
 
     def test_install_mod(self, authenticated_client, user):
-        """Test installation d'un mod"""
         game = GameFactory()
         server = ServerInstanceFactory(owner=user, game=game)
         mod = GameModFactory(game=game)
@@ -243,7 +226,6 @@ class TestServerModsManagement:
 @pytest.mark.django_db
 class TestServerPlayersManagement:
     def test_list_server_players(self, authenticated_client, user):
-        """Test liste des joueurs d'un serveur"""
         server = ServerInstanceFactory(owner=user)
         ServerPlayerFactory.create_batch(5, server=server)
 
@@ -254,7 +236,6 @@ class TestServerPlayersManagement:
         assert len(response.data) == 5
 
     def test_add_player(self, authenticated_client, user):
-        """Test ajout d'un joueur"""
         server = ServerInstanceFactory(owner=user)
 
         url = reverse("server-players", kwargs={"pk": server.id})
@@ -276,7 +257,6 @@ class TestServerPlayersManagement:
 @pytest.mark.django_db
 class TestPermissions:
     def test_user_cannot_access_other_user_server(self, authenticated_client):
-        """Test qu'un user ne peut pas accéder au serveur d'un autre"""
         other_user = UserFactory()
         server = ServerInstanceFactory(owner=other_user, is_public=False)
 
@@ -286,7 +266,6 @@ class TestPermissions:
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
     def test_admin_can_access_all_servers(self, admin_client):
-        """Test que l'admin peut accéder à tous les serveurs"""
         other_user = UserFactory()
         server = ServerInstanceFactory(owner=other_user, is_public=False)
 
@@ -296,7 +275,6 @@ class TestPermissions:
         assert response.status_code == status.HTTP_200_OK
 
     def test_unauthenticated_cannot_create_server(self, api_client):
-        """Test qu'un non-authentifié ne peut pas créer de serveur"""
         game = GameFactory()
         version = GameVersionFactory(game=game)
 
