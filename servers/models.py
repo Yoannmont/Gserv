@@ -17,9 +17,7 @@ class ServerInstance(models.Model):
     ]
 
     name = models.CharField(max_length=100, verbose_name="Nom du serveur")
-    game = models.ForeignKey(
-        Game, on_delete=models.PROTECT, related_name="servers", verbose_name="Jeu"
-    )
+    game = models.ForeignKey(Game, on_delete=models.PROTECT, related_name="servers", verbose_name="Jeu")
     game_version = models.ForeignKey(
         GameVersion,
         on_delete=models.PROTECT,
@@ -33,12 +31,8 @@ class ServerInstance(models.Model):
         verbose_name="Propriétaire",
     )
     description = models.TextField(blank=True, verbose_name="Description")
-    status = models.CharField(
-        max_length=20, choices=STATUS_CHOICES, default="stopped", verbose_name="Statut"
-    )
-    container_id = models.CharField(
-        max_length=64, blank=True, null=True, verbose_name="ID du conteneur Docker"
-    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="stopped", verbose_name="Statut")
+    container_id = models.CharField(max_length=64, blank=True, null=True, verbose_name="ID du conteneur Docker")
     port = models.IntegerField(verbose_name="Port", help_text="Port externe du serveur")
     max_players = models.IntegerField(default=20, verbose_name="Nombre maximum de joueurs")
     auto_start = models.BooleanField(default=False, verbose_name="Démarrage automatique")
@@ -92,12 +86,8 @@ class ServerConfiguration(models.Model):
         verbose_name="Limite de mémoire",
         help_text="Ex: 2g, 4g, 8g",
     )
-    cpu_limit = models.FloatField(
-        default=2.0, verbose_name="Limite CPU", help_text="Nombre de CPUs (ex: 2.0)"
-    )
-    custom_startup_command = models.TextField(
-        blank=True, verbose_name="Commande de démarrage personnalisée"
-    )
+    cpu_limit = models.FloatField(default=2.0, verbose_name="Limite CPU", help_text="Nombre de CPUs (ex: 2.0)")
+    custom_startup_command = models.TextField(blank=True, verbose_name="Commande de démarrage personnalisée")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -125,9 +115,7 @@ class ServerMod(models.Model):
         verbose_name="Mod",
     )
     is_enabled = models.BooleanField(default=True, verbose_name="Activé")
-    custom_config = models.JSONField(
-        default=dict, blank=True, verbose_name="Configuration personnalisée"
-    )
+    custom_config = models.JSONField(default=dict, blank=True, verbose_name="Configuration personnalisée")
     installed_at = models.DateTimeField(auto_now_add=True, verbose_name="Date d'installation")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Dernière mise à jour")
 
@@ -150,9 +138,7 @@ class ServerStatus(models.Model):
         related_name="status_history",
         verbose_name="Serveur",
     )
-    status = models.CharField(
-        max_length=20, choices=ServerInstance.STATUS_CHOICES, verbose_name="Statut"
-    )
+    status = models.CharField(max_length=20, choices=ServerInstance.STATUS_CHOICES, verbose_name="Statut")
     message = models.TextField(blank=True, verbose_name="Message")
     triggered_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -196,9 +182,7 @@ class ServerPlayer(models.Model):
         null=True,
         blank=True,
     )
-    minecraft_username = models.CharField(
-        max_length=16, blank=True, verbose_name="Pseudo Minecraft"
-    )
+    minecraft_username = models.CharField(max_length=16, blank=True, verbose_name="Pseudo Minecraft")
     minecraft_uuid = models.CharField(max_length=36, blank=True, verbose_name="UUID Minecraft")
     permission_level = models.CharField(
         max_length=20,

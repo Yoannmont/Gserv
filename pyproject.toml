@@ -4,7 +4,7 @@ exclude = [
     ".git",
     "__init__.py"]
 target-version = "py312"
-line-length = 100
+line-length = 120
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "SIM"]

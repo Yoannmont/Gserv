@@ -1,6 +1,6 @@
-from games.models import GameMod
 from rest_framework import serializers
 
+from games.models import GameMod
 from games.serializers import GameModSerializer, GameSerializer, GameVersionSerializer
 from servers.models import (
     ServerConfiguration,
@@ -26,9 +26,7 @@ class ServerConfigurationSerializer(serializers.ModelSerializer):
 
 class ServerModSerializer(serializers.ModelSerializer):
     mod = GameModSerializer(read_only=True)
-    mod_id = serializers.PrimaryKeyRelatedField(
-        queryset=GameMod.objects.all(), source="mod", write_only=True
-    )
+    mod_id = serializers.PrimaryKeyRelatedField(queryset=GameMod.objects.all(), source="mod", write_only=True)
 
     class Meta:
         model = ServerMod

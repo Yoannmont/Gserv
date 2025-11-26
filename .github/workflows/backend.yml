@@ -1,0 +1,50 @@
+name: Gserv Backend CI
+
+on:
+  push:
+    branches: [ "*" ]
+  pull_request:
+    branches: [ "*" ]
+
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    
+    - name: Install python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    
+    
+    - name: Install dependencies, ruff and test
+      run: |
+        pip install uv
+        uv venv
+        source .venv/bin/activate
+        uv pip install -r requirements/dev.lock
+        ruff check
+        ruff format --check .
+        coverage run -m pytest
+        coverage report > coverage.txt
+        coverage html
+
+    - name: Show coverage in logs
+      run: cat backend/coverage.txt
+
+    - name: Add coverage summary to workflow summary
+      run: |
+        echo "## Coverage Report" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        cat backend/coverage.txt >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+    - name: Upload HTML coverage report
+      uses: actions/upload-artifact@v4
+      with:
+        name: html-coverage-report
+        path: backend/htmlcov

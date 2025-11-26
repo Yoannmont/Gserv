@@ -52,19 +52,19 @@ class GameViewSet(viewsets.ModelViewSet):
         logger.info("[games_game_create] Game create request")
         response = super().create(request, *args, **kwargs)
         if response.status_code == 201:
-            game_slug = response.data.get('slug', 'unknown')
+            game_slug = response.data.get("slug", "unknown")
             logger.info(f"[games_game_create] Game created successfully slug={game_slug}")
         return response
 
     def retrieve(self, request, *args, **kwargs):
         """Get game details"""
-        slug = kwargs.get('slug')
+        slug = kwargs.get("slug")
         logger.info(f"[games_game_retrieve] Game retrieve request slug={slug}")
         return super().retrieve(request, *args, **kwargs)
 
     def update(self, request, *args, **kwargs):
         """Update game"""
-        slug = kwargs.get('slug')
+        slug = kwargs.get("slug")
         logger.info(f"[games_game_update] Game update request slug={slug}")
         response = super().update(request, *args, **kwargs)
         logger.info(f"[games_game_update] Game updated successfully slug={slug}")
@@ -72,7 +72,7 @@ class GameViewSet(viewsets.ModelViewSet):
 
     def partial_update(self, request, *args, **kwargs):
         """Partial update game"""
-        slug = kwargs.get('slug')
+        slug = kwargs.get("slug")
         logger.info(f"[games_game_partial_update] Game partial update request slug={slug}")
         response = super().partial_update(request, *args, **kwargs)
         logger.info(f"[games_game_partial_update] Game partially updated successfully slug={slug}")
@@ -80,7 +80,7 @@ class GameViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         """Delete game"""
-        slug = kwargs.get('slug')
+        slug = kwargs.get("slug")
         logger.info(f"[games_game_destroy] Game delete request slug={slug}")
         response = super().destroy(request, *args, **kwargs)
         logger.info(f"[games_game_destroy] Game deleted successfully slug={slug}")
@@ -139,19 +139,19 @@ class GameVersionViewSet(viewsets.ModelViewSet):
         logger.info("[games_version_create] Game version create request")
         response = super().create(request, *args, **kwargs)
         if response.status_code == 201:
-            version_id = response.data.get('id', 'unknown')
+            version_id = response.data.get("id", "unknown")
             logger.info(f"[games_version_create] Game version created successfully id={version_id}")
         return response
 
     def retrieve(self, request, *args, **kwargs):
         """Get game version details"""
-        version_id = kwargs.get('pk')
+        version_id = kwargs.get("pk")
         logger.info(f"[games_version_retrieve] Game version retrieve request id={version_id}")
         return super().retrieve(request, *args, **kwargs)
 
     def update(self, request, *args, **kwargs):
         """Update game version"""
-        version_id = kwargs.get('pk')
+        version_id = kwargs.get("pk")
         logger.info(f"[games_version_update] Game version update request id={version_id}")
         response = super().update(request, *args, **kwargs)
         logger.info(f"[games_version_update] Game version updated successfully id={version_id}")
@@ -159,7 +159,7 @@ class GameVersionViewSet(viewsets.ModelViewSet):
 
     def partial_update(self, request, *args, **kwargs):
         """Partial update game version"""
-        version_id = kwargs.get('pk')
+        version_id = kwargs.get("pk")
         logger.info(f"[games_version_partial_update] Game version partial update request id={version_id}")
         response = super().partial_update(request, *args, **kwargs)
         logger.info(f"[games_version_partial_update] Game version partially updated successfully id={version_id}")
@@ -167,7 +167,7 @@ class GameVersionViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         """Delete game version"""
-        version_id = kwargs.get('pk')
+        version_id = kwargs.get("pk")
         logger.info(f"[games_version_destroy] Game version delete request id={version_id}")
         response = super().destroy(request, *args, **kwargs)
         logger.info(f"[games_version_destroy] Game version deleted successfully id={version_id}")
@@ -199,19 +199,19 @@ class GameModViewSet(viewsets.ModelViewSet):
         logger.info("[games_mod_create] Game mod create request")
         response = super().create(request, *args, **kwargs)
         if response.status_code == 201:
-            mod_id = response.data.get('id', 'unknown')
+            mod_id = response.data.get("id", "unknown")
             logger.info(f"[games_mod_create] Game mod created successfully id={mod_id}")
         return response
 
     def retrieve(self, request, *args, **kwargs):
         """Get game mod details"""
-        mod_id = kwargs.get('pk')
+        mod_id = kwargs.get("pk")
         logger.info(f"[games_mod_retrieve] Game mod retrieve request id={mod_id}")
         return super().retrieve(request, *args, **kwargs)
 
     def update(self, request, *args, **kwargs):
         """Update game mod"""
-        mod_id = kwargs.get('pk')
+        mod_id = kwargs.get("pk")
         logger.info(f"[games_mod_update] Game mod update request id={mod_id}")
         response = super().update(request, *args, **kwargs)
         logger.info(f"[games_mod_update] Game mod updated successfully id={mod_id}")
@@ -219,7 +219,7 @@ class GameModViewSet(viewsets.ModelViewSet):
 
     def partial_update(self, request, *args, **kwargs):
         """Partial update game mod"""
-        mod_id = kwargs.get('pk')
+        mod_id = kwargs.get("pk")
         logger.info(f"[games_mod_partial_update] Game mod partial update request id={mod_id}")
         response = super().partial_update(request, *args, **kwargs)
         logger.info(f"[games_mod_partial_update] Game mod partially updated successfully id={mod_id}")
@@ -227,7 +227,7 @@ class GameModViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         """Delete game mod"""
-        mod_id = kwargs.get('pk')
+        mod_id = kwargs.get("pk")
         logger.info(f"[games_mod_destroy] Game mod delete request id={mod_id}")
         response = super().destroy(request, *args, **kwargs)
         logger.info(f"[games_mod_destroy] Game mod deleted successfully id={mod_id}")
@@ -251,19 +251,19 @@ class GameConfigurationViewSet(viewsets.ModelViewSet):
         logger.info("[games_config_create] Game configuration create request")
         response = super().create(request, *args, **kwargs)
         if response.status_code == 201:
-            config_id = response.data.get('id', 'unknown')
+            config_id = response.data.get("id", "unknown")
             logger.info(f"[games_config_create] Game configuration created successfully id={config_id}")
         return response
 
     def retrieve(self, request, *args, **kwargs):
         """Get game configuration details"""
-        config_id = kwargs.get('pk')
+        config_id = kwargs.get("pk")
         logger.info(f"[games_config_retrieve] Game configuration retrieve request id={config_id}")
         return super().retrieve(request, *args, **kwargs)
 
     def update(self, request, *args, **kwargs):
         """Update game configuration"""
-        config_id = kwargs.get('pk')
+        config_id = kwargs.get("pk")
         logger.info(f"[games_config_update] Game configuration update request id={config_id}")
         response = super().update(request, *args, **kwargs)
         logger.info(f"[games_config_update] Game configuration updated successfully id={config_id}")
@@ -271,7 +271,7 @@ class GameConfigurationViewSet(viewsets.ModelViewSet):
 
     def partial_update(self, request, *args, **kwargs):
         """Partial update game configuration"""
-        config_id = kwargs.get('pk')
+        config_id = kwargs.get("pk")
         logger.info(f"[games_config_partial_update] Game configuration partial update request id={config_id}")
         response = super().partial_update(request, *args, **kwargs)
         logger.info(f"[games_config_partial_update] Game configuration partially updated successfully id={config_id}")
@@ -279,7 +279,7 @@ class GameConfigurationViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         """Delete game configuration"""
-        config_id = kwargs.get('pk')
+        config_id = kwargs.get("pk")
         logger.info(f"[games_config_destroy] Game configuration delete request id={config_id}")
         response = super().destroy(request, *args, **kwargs)
         logger.info(f"[games_config_destroy] Game configuration deleted successfully id={config_id}")

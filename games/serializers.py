@@ -4,9 +4,7 @@ from games.models import Game, GameConfiguration, GameMod, GameVersion
 
 
 class GameVersionSerializer(serializers.ModelSerializer):
-    game_id = serializers.PrimaryKeyRelatedField(
-        queryset=Game.objects.all(), source="game", write_only=True
-    )
+    game_id = serializers.PrimaryKeyRelatedField(queryset=Game.objects.all(), source="game", write_only=True)
 
     class Meta:
         model = GameVersion
@@ -118,9 +116,7 @@ class GameConfigurationSerializer(serializers.ModelSerializer):
 
 
 class GameModCreateSerializer(serializers.ModelSerializer):
-    compatible_game_versions = serializers.PrimaryKeyRelatedField(
-        many=True, queryset=GameVersion.objects.all()
-    )
+    compatible_game_versions = serializers.PrimaryKeyRelatedField(many=True, queryset=GameVersion.objects.all())
 
     class Meta:
         model = GameMod

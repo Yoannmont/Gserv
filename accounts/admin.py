@@ -10,13 +10,9 @@ class UserAdmin(BaseUserAdmin):
     list_filter = ["role", "is_active", "is_staff"]
     search_fields = ["username", "email", "first_name", "last_name"]
 
-    fieldsets = BaseUserAdmin.fieldsets + (
-        ("Informations supplémentaires", {"fields": ("role", "avatar")}),
-    )
+    fieldsets = BaseUserAdmin.fieldsets + (("Informations supplémentaires", {"fields": ("role", "avatar")}),)
 
-    add_fieldsets = BaseUserAdmin.add_fieldsets + (
-        ("Informations supplémentaires", {"fields": ("role",)}),
-    )
+    add_fieldsets = BaseUserAdmin.add_fieldsets + (("Informations supplémentaires", {"fields": ("role",)}),)
 
 
 @admin.register(UserProfile)

@@ -81,13 +81,13 @@ class UserViewSet(viewsets.ModelViewSet):
 
     def retrieve(self, request, *args, **kwargs):
         """Get user details"""
-        user_id = kwargs.get('pk')
+        user_id = kwargs.get("pk")
         logger.info(f"[accounts_user_retrieve] User retrieve request id={user_id}")
         return super().retrieve(request, *args, **kwargs)
 
     def update(self, request, *args, **kwargs):
         """Update user"""
-        user_id = kwargs.get('pk')
+        user_id = kwargs.get("pk")
         logger.info(f"[accounts_user_update] User update request id={user_id}")
         response = super().update(request, *args, **kwargs)
         logger.info(f"[accounts_user_update] User updated successfully id={user_id}")
@@ -95,7 +95,7 @@ class UserViewSet(viewsets.ModelViewSet):
 
     def partial_update(self, request, *args, **kwargs):
         """Partial update user"""
-        user_id = kwargs.get('pk')
+        user_id = kwargs.get("pk")
         logger.info(f"[accounts_user_partial_update] User partial update request id={user_id}")
         response = super().partial_update(request, *args, **kwargs)
         logger.info(f"[accounts_user_partial_update] User partially updated successfully id={user_id}")
@@ -103,7 +103,7 @@ class UserViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         """Delete user"""
-        user_id = kwargs.get('pk')
+        user_id = kwargs.get("pk")
         logger.info(f"[accounts_user_destroy] User delete request id={user_id}")
         response = super().destroy(request, *args, **kwargs)
         logger.info(f"[accounts_user_destroy] User deleted successfully id={user_id}")
@@ -119,11 +119,15 @@ class UserViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=["post"])
     def login(self, request):
         """Connexion de l'utilisateur et obtention des tokens JWT"""
-        username = request.data.get('username', 'unknown')
+        username = request.data.get("username", "unknown")
         logger.info(f"[accounts_user_login] User login request username={username}")
         serializer = TokenObtainSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        user_id = serializer.validated_data.get('user', {}).get('id') if isinstance(serializer.validated_data.get('user'), dict) else None
+        user_id = (
+            serializer.validated_data.get("user", {}).get("id")
+            if isinstance(serializer.validated_data.get("user"), dict)
+            else None
+        )
         logger.info(f"[accounts_user_login] User logged in successfully username={username} id={user_id}")
         return Response(serializer.validated_data)
 
@@ -146,9 +150,7 @@ class UserViewSet(viewsets.ModelViewSet):
             return Response({"error": "Token invalide"}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             logger.error(f"[accounts_user_logout] Logout error id={user_id} error={str(e)}")
-            return Response(
-                {"error": f"Erreur lors de la déconnexion; {e}"}, status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": f"Erreur lors de la déconnexion; {e}"}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=["post"])
     def refresh(self, request):
@@ -175,13 +177,15 @@ class UserViewSet(viewsets.ModelViewSet):
         refresh = RefreshToken.for_user(user)
         logger.info(f"[accounts_user_change_password] Password changed successfully id={user_id}")
 
-        return Response({
-            "message": "Mot de passe modifié avec succès",
-            "tokens": {
-                "refresh": str(refresh),
-                "access": str(refresh.access_token),
-            },
-        })
+        return Response(
+            {
+                "message": "Mot de passe modifié avec succès",
+                "tokens": {
+                    "refresh": str(refresh),
+                    "access": str(refresh.access_token),
+                },
+            }
+        )
 
     @action(detail=False, methods=["patch"])
     def update_profile(self, request):

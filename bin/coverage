@@ -1,3 +1,3 @@
 #!/bin/bash
-pytest --cov=app --cov-report=html
+pytest --cov=config --cov=accounts --cov=api --cov=games --cov=servers --cov=monitoring --cov-report=term --cov-report=html
 open htmlcov/index.html

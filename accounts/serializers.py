@@ -41,9 +41,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         if data["password"] != data["password_confirm"]:
-            raise serializers.ValidationError(
-                {"password_confirm": "Les mots de passe ne correspondent pas"}
-            )
+            raise serializers.ValidationError({"password_confirm": "Les mots de passe ne correspondent pas"})
         return data
 
     def create(self, validated_data):
@@ -135,9 +133,7 @@ class PasswordChangeSerializer(serializers.Serializer):
 
     def validate(self, data):
         if data["new_password"] != data["new_password_confirm"]:
-            raise serializers.ValidationError(
-                {"new_password_confirm": "Les mots de passe ne correspondent pas"}
-            )
+            raise serializers.ValidationError({"new_password_confirm": "Les mots de passe ne correspondent pas"})
         return data
 
     def validate_old_password(self, value):

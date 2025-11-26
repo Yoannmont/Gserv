@@ -10,9 +10,7 @@ class User(AbstractUser):
         ("admin", "Administrateur"),
     ]
 
-    role = models.CharField(
-        max_length=10, choices=ROLE_CHOICES, default="user", verbose_name="Rôle"
-    )
+    role = models.CharField(max_length=10, choices=ROLE_CHOICES, default="user", verbose_name="Rôle")
     avatar = models.ImageField(upload_to="avatars/", null=True, blank=True, verbose_name="Avatar")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Date de création")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Dernière modification")
