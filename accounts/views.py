@@ -219,13 +219,15 @@ class UserViewSet(viewsets.ModelViewSet):
 
             logger.info(f"[accounts_user_change_password] Password changed successfully id={user_id}")
 
-            return Response({
-                "message": "Mot de passe modifié avec succès",
-                "tokens": {
-                    "refresh": str(refresh),
-                    "access": str(refresh.access_token),
-                },
-            })
+            return Response(
+                {
+                    "message": "Mot de passe modifié avec succès",
+                    "tokens": {
+                        "refresh": str(refresh),
+                        "access": str(refresh.access_token),
+                    },
+                }
+            )
         except DRFValidationError as e:
             logger.warning(f"[accounts_user_change_password] Validation error id={user_id} errors={e.detail}")
             raise
