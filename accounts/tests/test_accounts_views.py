@@ -124,22 +124,6 @@ class TestUserProfile:
 
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
-    def test_update_profile(self, authenticated_client, user):
-        """Test mise à jour du profil"""
-        from accounts.tests.accounts_factories import UserProfileFactory
-
-        UserProfileFactory(user=user)
-
-        url = reverse("user-update-profile")
-        data = {"first_name": "Updated", "profile": {"bio": "New bio", "theme": "light"}}
-
-        response = authenticated_client.patch(url, data, format="json")
-
-        assert response.status_code == status.HTTP_200_OK
-        user.refresh_from_db()
-        assert user.first_name == "Updated"
-        assert user.profile.bio == "New bio"
-
 
 @pytest.mark.django_db
 class TestPasswordChange:
@@ -190,3 +174,142 @@ class TestUserLogout:
 
         assert response.status_code == status.HTTP_200_OK
         assert "message" in response.data
+
+    def test_logout_invalid_token(self, authenticated_client, user):
+        """Test déconnexion avec token invalide"""
+        url = reverse("user-logout")
+        data = {"refresh": "invalid_token"}
+
+        response = authenticated_client.post(url, data, format="json")
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "error" in response.data
+
+    def test_logout_without_token(self, authenticated_client):
+        """Test déconnexion sans token"""
+        url = reverse("user-logout")
+        data = {}
+
+        response = authenticated_client.post(url, data, format="json")
+
+        assert response.status_code == status.HTTP_200_OK
+
+
+@pytest.mark.django_db
+class TestUserCRUD:
+    def test_list_users(self, authenticated_client):
+        """Test liste des utilisateurs"""
+        UserFactory.create_batch(3)
+
+        url = reverse("user-list")
+        response = authenticated_client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.data["results"]) >= 3  # 3 + conftest user
+
+    def test_retrieve_user(self, authenticated_client, user):
+        """Test récupération d'un utilisateur"""
+        url = reverse("user-detail", kwargs={"pk": user.id})
+        response = authenticated_client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["id"] == user.id
+        assert response.data["username"] == user.username
+
+    def test_update_user(self, authenticated_client, user):
+        """Test mise à jour complète d'un utilisateur"""
+        url = reverse("user-detail", kwargs={"pk": user.id})
+        data = {
+            "first_name": "Updated",
+            "last_name": "Name",
+            "email": "updated@example.com",
+            "profile": {
+                "bio": "This is a bio",
+                "discord_username": "Discord_444",
+                "notifications_enabled": False,
+                "theme": "light",
+            },
+        }
+
+        response = authenticated_client.put(url, data, format="json")
+
+        assert response.status_code == status.HTTP_200_OK
+        user.refresh_from_db()
+        assert user.first_name == "Updated"
+        assert user.profile.bio == "This is a bio"
+        assert user.last_name == "Name"
+        assert user.email == "updated@example.com"
+        assert user.profile.discord_username == "Discord_444"
+        assert user.profile.notifications_enabled is False
+        assert user.profile.theme == "light"
+
+    def test_partial_update_user(self, authenticated_client, user):
+        """Test mise à jour partielle d'un utilisateur"""
+        url = reverse("user-detail", kwargs={"pk": user.id})
+        data = {"first_name": "PartiallyUpdated", "profile": {"bio": "OKOK"}}
+
+        response = authenticated_client.patch(url, data, format="json")
+
+        assert response.status_code == status.HTTP_200_OK
+        user.refresh_from_db()
+        assert user.first_name == "PartiallyUpdated"
+        assert user.profile.bio == "OKOK"
+
+    def test_delete_user(self, authenticated_client, user):
+        """Test suppression d'un utilisateur"""
+        user_id = user.id
+        url = reverse("user-detail", kwargs={"pk": user_id})
+
+        response = authenticated_client.delete(url)
+
+        assert response.status_code == status.HTTP_204_NO_CONTENT
+        assert not User.objects.filter(id=user_id).exists()
+
+
+@pytest.mark.django_db
+class TestUserLoginAction:
+    def test_login_action_success(self, api_client, user):
+        url = reverse("token_obtain_pair")
+        data = {"username": user.username, "password": "testpass123"}
+
+        response = api_client.post(url, data, format="json")
+
+        assert response.status_code == status.HTTP_200_OK
+        assert "access" in response.data
+        assert "refresh" in response.data
+        assert "user" in response.data
+
+    def test_login_action_invalid_credentials(self, api_client, user):
+        """Test action login avec mauvais identifiants"""
+        url = reverse("token_obtain_pair")
+        data = {"username": user.username, "password": "wrongpass"}
+
+        response = api_client.post(url, data, format="json")
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+
+@pytest.mark.django_db
+class TestTokenRefresh:
+    def test_refresh_token_success(self, api_client, user):
+        url = reverse("token_obtain_pair")
+        data = {"username": user.username, "password": "testpass123"}
+        response = api_client.post(url, data, format="json")
+        refresh = response.data["refresh"]
+
+        url = reverse("token_refresh")
+        data = {"refresh": str(refresh)}
+
+        response = api_client.post(url, data, format="json")
+
+        assert response.status_code == status.HTTP_200_OK
+        assert "access" in response.data
+        assert "refresh" in response.data
+
+    def test_refresh_token_invalid(self, api_client):
+        url = reverse("token_refresh")
+        data = {"refresh": "invalid_token"}
+
+        response = api_client.post(url, data, format="json")
+
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED

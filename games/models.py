@@ -26,8 +26,6 @@ class Game(models.Model):
 
 
 class GameVersion(models.Model):
-    """Versions disponibles pour un jeu"""
-
     game = models.ForeignKey(Game, on_delete=models.CASCADE, related_name="versions", verbose_name="Jeu")
     version = models.CharField(max_length=50, verbose_name="Version", help_text="Ex: 1.20.4, latest")
     release_date = models.DateField(null=True, blank=True, verbose_name="Date de sortie")
@@ -47,8 +45,6 @@ class GameVersion(models.Model):
 
 
 class GameMod(models.Model):
-    """Mods disponibles pour un jeu"""
-
     MOD_TYPE_CHOICES = [
         ("plugin", "Plugin"),
         ("mod", "Mod"),
@@ -83,8 +79,6 @@ class GameMod(models.Model):
 
 
 class GameConfiguration(models.Model):
-    """Templates de configuration pour les jeux"""
-
     game = models.ForeignKey(Game, on_delete=models.CASCADE, related_name="configurations", verbose_name="Jeu")
     name = models.CharField(max_length=100, verbose_name="Nom de la configuration")
     description = models.TextField(blank=True, verbose_name="Description")

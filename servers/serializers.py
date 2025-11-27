@@ -179,13 +179,21 @@ class ServerInstanceCreateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         configuration_data = validated_data.pop("configuration", None)
         owner = self.context["request"].user
+        default_configuration = {
+            "config_data": {},
+            "environment_variables": {},
+            "docker_volumes": [],
+            "memory_limit": "2g",
+            "cpu_limit": 2.0,
+            "custom_startup_command": "",
+        }
 
         server = ServerInstance.objects.create(owner=owner, **validated_data)
-
-        if configuration_data:
-            ServerConfiguration.objects.create(server=server, **configuration_data)
+        if not configuration_data or not ServerConfigurationSerializer(data=configuration_data).is_valid():
+            server.configuration = ServerConfiguration.objects.create(server=server, **default_configuration)
         else:
-            ServerConfiguration.objects.create(server=server)
+            server.configuration = ServerConfiguration.objects.create(server=server, **configuration_data)
+        server.save()
 
         return server
 
@@ -203,6 +211,8 @@ class ServerInstanceUpdateSerializer(serializers.ModelSerializer):
             "auto_update",
             "backup_enabled",
             "is_public",
+            "port",
+            "status",
             "configuration",
         ]
 

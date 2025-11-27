@@ -67,7 +67,7 @@ class GameDetailSerializer(GameSerializer):
 
 class GameModSerializer(serializers.ModelSerializer):
     game_name = serializers.CharField(source="game.name", read_only=True)
-    compatible_versions = serializers.SerializerMethodField()
+    compatible_game_versions = serializers.PrimaryKeyRelatedField(many=True, queryset=GameVersion.objects.all())
 
     class Meta:
         model = GameMod
@@ -85,15 +85,40 @@ class GameModSerializer(serializers.ModelSerializer):
             "author",
             "website",
             "is_active",
-            "compatible_versions",
+            "compatible_game_versions",
             "created_at",
             "updated_at",
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
 
-    def get_compatible_versions(self, obj):
-        versions = obj.compatible_game_versions.all()
-        return [v.version for v in versions]
+
+class GameModUpdateSerializer(serializers.ModelSerializer):
+    compatible_game_versions = serializers.PrimaryKeyRelatedField(many=True, queryset=GameVersion.objects.all())
+
+    class Meta:
+        model = GameMod
+        fields = [
+            "name",
+            "slug",
+            "description",
+            "mod_type",
+            "version",
+            "download_url",
+            "file_name",
+            "author",
+            "website",
+            "is_active",
+            "compatible_game_versions",
+        ]
+
+    def update(self, instance, validated_data):
+        compatible_game_versions = validated_data.pop("compatible_game_versions", None)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        if compatible_game_versions:
+            instance.compatible_game_versions.set(compatible_game_versions)
+        return instance
 
 
 class GameConfigurationSerializer(serializers.ModelSerializer):
@@ -133,3 +158,11 @@ class GameModCreateSerializer(serializers.ModelSerializer):
             "website",
             "compatible_game_versions",
         ]
+
+    def create(self, validated_data):
+        compatible_game_versions = validated_data.pop("compatible_game_versions", None)
+        mod = GameMod.objects.create(**validated_data)
+        if compatible_game_versions:
+            for version in compatible_game_versions:
+                mod.compatible_game_versions.add(version)
+        return mod

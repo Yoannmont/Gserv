@@ -4,6 +4,8 @@ import pytest
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from accounts.models import UserProfile
+
 os.environ.setdefault("DJANGO_CONFIGURATION", "Test")
 
 
@@ -32,22 +34,29 @@ def admin_client(api_client, admin_user):
 @pytest.fixture
 def user(django_user_model):
     """Utilisateur normal"""
-    return django_user_model.objects.create_user(
+    user = django_user_model.objects.create_user(
         username="testuser", email="test@example.com", password="testpass123", role="user"
     )
+
+    UserProfile.objects.create(user=user)
+    return user
 
 
 @pytest.fixture
 def admin_user(django_user_model):
     """Utilisateur admin"""
-    return django_user_model.objects.create_user(
+    user = django_user_model.objects.create_user(
         username="admin", email="admin@example.com", password="adminpass123", role="admin"
     )
+    UserProfile.objects.create(user=user)
+    return user
 
 
 @pytest.fixture
 def other_user(django_user_model):
     """Autre utilisateur pour les tests de permissions"""
-    return django_user_model.objects.create_user(
+    user = django_user_model.objects.create_user(
         username="otheruser", email="other@example.com", password="otherpass123", role="user"
     )
+    UserProfile.objects.create(user=user)
+    return user

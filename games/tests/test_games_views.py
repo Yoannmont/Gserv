@@ -2,6 +2,7 @@ import pytest
 from django.urls import reverse
 from rest_framework import status
 
+from games.models import Game, GameMod, GameVersion
 from games.tests.games_factories import (
     GameConfigurationFactory,
     GameFactory,
@@ -97,6 +98,81 @@ class TestGameViewSet:
         assert response.status_code == status.HTTP_200_OK
         assert len(response.data) == 2  # mod1 et mod3
 
+    def test_update_game(self, admin_client):
+        game = GameFactory(slug="test-game", name="Test Game")
+        url = reverse("game-detail", kwargs={"slug": "test-game"})
+        data = {
+            "name": "Updated Game",
+            "description": "Updated description",
+            "game_id": game.id,
+            "slug": "updated-game",
+            "docker_image": "game/updated:latest",
+            "default_port": 44444,
+            "documentation_url": "https://example.com",
+            "is_active": True,
+        }
+
+        response = admin_client.put(url, data, format="json")
+
+        assert response.status_code == status.HTTP_200_OK
+        game.refresh_from_db()
+        assert game.name == "Updated Game"
+        assert game.slug == "updated-game"
+        assert game.docker_image == "game/updated:latest"
+        assert game.default_port == 44444
+        assert game.documentation_url == "https://example.com"
+        assert game.is_active is True
+
+    def test_partial_update_game(self, admin_client):
+        game = GameFactory(
+            slug="test-game",
+            name="Test Game",
+            description="Test Description",
+            docker_image="game/test:latest",
+            default_port=25565,
+            documentation_url="https://example.com",
+            is_active=True,
+        )
+        url = reverse("game-detail", kwargs={"slug": "test-game"})
+        data = {
+            "description": "New description",
+            "game_id": game.id,
+            "slug": "updated-game",
+            "docker_image": "game/updated:latest",
+            "default_port": 44444,
+            "documentation_url": "https://example.com",
+            "is_active": True,
+        }
+        response = admin_client.patch(url, data, format="json")
+        assert response.status_code == status.HTTP_200_OK
+        game.refresh_from_db()
+        assert game.description == "New description"
+        assert game.slug == "updated-game"
+        assert game.docker_image == "game/updated:latest"
+        assert game.default_port == 44444
+        assert game.documentation_url == "https://example.com"
+        assert game.is_active is True
+
+    def test_delete_game(self, admin_client):
+        game = GameFactory(slug="test-game", name="Test Game")
+        url = reverse("game-detail", kwargs={"slug": "test-game"})
+
+        response = admin_client.delete(url)
+
+        assert response.status_code == status.HTTP_204_NO_CONTENT
+        assert not Game.objects.filter(id=game.id).exists()
+
+    def test_game_configurations_action(self, api_client):
+        """Test récupération des configurations d'un jeu"""
+        game = GameFactory(slug="minecraft")
+        GameConfigurationFactory.create_batch(3, game=game)
+
+        url = reverse("game-configurations", kwargs={"slug": "minecraft"})
+        response = api_client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.data) == 3
+
 
 @pytest.mark.django_db
 class TestGameVersionViewSet:
@@ -132,6 +208,40 @@ class TestGameVersionViewSet:
         response = admin_client.post(url, data, format="json")
 
         assert response.status_code == status.HTTP_201_CREATED
+
+    def test_retrieve_version(self, api_client):
+        """Test récupération d'une version"""
+        game = GameFactory()
+        version = GameVersionFactory(game=game, version="1.20.0")
+
+        url = reverse("gameversion-detail", kwargs={"pk": version.id})
+        response = api_client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["version"] == "1.20.0"
+
+    def test_update_version(self, admin_client):
+        game = GameFactory()
+        version = GameVersionFactory(game=game, version="1.20.0", is_stable=False)
+
+        url = reverse("gameversion-detail", kwargs={"pk": version.id})
+        data = {"game_id": game.id, "version": "1.20.1", "is_stable": True}
+
+        response = admin_client.put(url, data, format="json")
+
+        assert response.status_code == status.HTTP_200_OK
+        version.refresh_from_db()
+        assert version.version == "1.20.1"
+        assert version.is_stable is True
+
+    def test_delete_version(self, admin_client):
+        game = GameFactory()
+        version = GameVersionFactory(game=game)
+
+        url = reverse("gameversion-detail", kwargs={"pk": version.id})
+        response = admin_client.delete(url)
+
+        assert response.status_code == status.HTTP_204_NO_CONTENT
 
 
 @pytest.mark.django_db
@@ -189,6 +299,82 @@ class TestGameModViewSet:
 
         assert response.status_code == status.HTTP_201_CREATED
 
+    def test_retrieve_mod(self, api_client):
+        """Test récupération d'un mod"""
+        game = GameFactory()
+        mod = GameModFactory(game=game, name="Test Mod")
+
+        url = reverse("gamemod-detail", kwargs={"pk": mod.id})
+        response = api_client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["name"] == "Test Mod"
+
+    def test_update_mod(self, admin_client):
+        game = GameFactory()
+        mod = GameModFactory(game=game, name="Old Name")
+        version = GameVersionFactory(game=game, version="1.20")
+
+        assert GameVersion.objects.filter(game=game).exists()
+        url = reverse("gamemod-detail", kwargs={"pk": mod.id})
+        data = {
+            "game": game.id,
+            "name": "New Name",
+            "slug": "new-mod",
+            "description": "Updated description",
+            "mod_type": "mod",
+            "version": "1.0",
+            "download_url": "https://example.com/mod.jar",
+            "file_name": "new-mod.jar",
+            "compatible_game_versions": [version.id],
+            "author": "John Doe",
+            "website": "https://example.com",
+            "is_active": True,
+        }
+
+        response = admin_client.put(url, data, format="json")
+
+        assert response.status_code == status.HTTP_200_OK
+        mod.refresh_from_db()
+        assert mod.name == "New Name"
+        assert mod.description == "Updated description"
+        assert mod.mod_type == "mod"
+        assert mod.version == "1.0"
+        assert mod.download_url == "https://example.com/mod.jar"
+        assert mod.file_name == "new-mod.jar"
+        assert mod.compatible_game_versions.count() == 1
+        assert mod.compatible_game_versions.first().id == version.id
+        assert mod.author == "John Doe"
+        assert mod.website == "https://example.com"
+        assert mod.is_active is True
+        assert mod.game == game
+        assert mod.slug == "new-mod"
+
+    def test_partial_update_mod(self, admin_client):
+        """Test mise à jour partielle d'un mod"""
+        game = GameFactory()
+        mod = GameModFactory(game=game, name="Test Mod")
+
+        url = reverse("gamemod-detail", kwargs={"pk": mod.id})
+        data = {"description": "New description"}
+
+        response = admin_client.patch(url, data, format="json")
+
+        assert response.status_code == status.HTTP_200_OK
+        mod.refresh_from_db()
+        assert mod.description == "New description"
+
+    def test_delete_mod(self, admin_client):
+        """Test suppression d'un mod"""
+        game = GameFactory()
+        mod = GameModFactory(game=game)
+
+        url = reverse("gamemod-detail", kwargs={"pk": mod.id})
+        response = admin_client.delete(url)
+
+        assert response.status_code == status.HTTP_204_NO_CONTENT
+        assert not GameMod.objects.filter(game=game).exists()
+
 
 @pytest.mark.django_db
 class TestGameConfigurationViewSet:
@@ -213,3 +399,71 @@ class TestGameConfigurationViewSet:
 
         assert response.status_code == status.HTTP_200_OK
         assert len(response.data["results"]) == 2
+
+    def test_retrieve_configuration(self, api_client):
+        """Test récupération d'une configuration"""
+        game = GameFactory()
+        config = GameConfigurationFactory(game=game, name="Test Config")
+
+        url = reverse("gameconfiguration-detail", kwargs={"pk": config.id})
+        response = api_client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["name"] == "Test Config"
+
+    def test_create_configuration_as_admin(self, admin_client):
+        """Test création d'une configuration"""
+        game = GameFactory()
+
+        url = reverse("gameconfiguration-list")
+        data = {
+            "game": game.id,
+            "name": "New Config",
+            "config_data": {"key": "value"},
+            "is_default": False,
+        }
+
+        response = admin_client.post(url, data, format="json")
+
+        assert response.status_code == status.HTTP_201_CREATED
+        assert response.data["name"] == "New Config"
+
+    def test_update_configuration(self, admin_client):
+        game = GameFactory()
+        config = GameConfigurationFactory(game=game, name="Old Name")
+
+        url = reverse("gameconfiguration-detail", kwargs={"pk": config.id})
+        data = {"game": game.id, "name": "Updated Name", "config_data": {"new_key": "new_value"}}
+
+        response = admin_client.put(url, data, format="json")
+
+        assert response.status_code == status.HTTP_200_OK
+        config.refresh_from_db()
+        assert config.name == "Updated Name"
+        assert config.config_data == {"new_key": "new_value"}
+        assert config.game == game
+        assert config.is_default is False
+
+    def test_partial_update_configuration(self, admin_client):
+        """Test mise à jour partielle d'une configuration"""
+        game = GameFactory()
+        config = GameConfigurationFactory(game=game, is_default=False)
+
+        url = reverse("gameconfiguration-detail", kwargs={"pk": config.id})
+        data = {"is_default": True}
+
+        response = admin_client.patch(url, data, format="json")
+
+        assert response.status_code == status.HTTP_200_OK
+        config.refresh_from_db()
+        assert config.is_default is True
+
+    def test_delete_configuration(self, admin_client):
+        """Test suppression d'une configuration"""
+        game = GameFactory()
+        config = GameConfigurationFactory(game=game)
+
+        url = reverse("gameconfiguration-detail", kwargs={"pk": config.id})
+        response = admin_client.delete(url)
+
+        assert response.status_code == status.HTTP_204_NO_CONTENT

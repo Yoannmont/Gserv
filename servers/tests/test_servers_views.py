@@ -119,6 +119,91 @@ class TestServerInstanceViewSet:
 
         assert not ServerInstance.objects.filter(id=server.id).exists()
 
+    def test_update_server_full(self, authenticated_client, user):
+        game = GameFactory()
+        version = GameVersionFactory(game=game)
+
+        url = reverse("server-list")
+        data = {
+            "name": "My Server",
+            "game": game.id,
+            "game_version": version.id,
+            "description": "Test server",
+            "port": 25565,
+            "max_players": 20,
+        }
+        response = authenticated_client.post(url, data, format="json")
+
+        assert response.status_code == status.HTTP_201_CREATED
+        assert response.data["name"] == "My Server"
+        server = ServerInstance.objects.first()
+
+        url = reverse("server-detail", kwargs={"pk": server.id})
+        data = {
+            "name": "Updated Name",
+            "description": "Updated description",
+            "port": 25566,
+            "max_players": 30,
+            "status": "running",
+            "auto_start": True,
+            "auto_update": True,
+            "backup_enabled": False,
+            "is_public": True,
+            "configuration": {
+                "config_data": {
+                    "key": "value",
+                },
+                "environment_variables": {
+                    "key": "value",
+                },
+                "docker_volumes": [
+                    {
+                        "source": "/path/to/source",
+                        "target": "/path/to/target",
+                    },
+                ],
+                "memory_limit": "2g",
+                "cpu_limit": 2.0,
+                "custom_startup_command": "echo 'Hello, world!'",
+            },
+        }
+
+        response = authenticated_client.put(url, data, format="json")
+
+        assert response.status_code == status.HTTP_200_OK
+        server.refresh_from_db()
+        assert server.name == "Updated Name"
+        assert server.port == 25566
+        assert server.status == "running"
+        assert server.auto_start is True
+        assert server.auto_update is True
+        assert server.backup_enabled is False
+        assert server.is_public is True
+        assert server.configuration.config_data == {"key": "value"}
+        assert server.configuration.environment_variables == {"key": "value"}
+        assert server.configuration.docker_volumes == [
+            {
+                "source": "/path/to/source",
+                "target": "/path/to/target",
+            },
+        ]
+        assert server.configuration.memory_limit == "2g"
+        assert server.configuration.cpu_limit == 2.0
+        assert server.configuration.custom_startup_command == "echo 'Hello, world!'"
+
+    def test_partial_update_server(self, authenticated_client, user):
+        """Test mise à jour partielle d'un serveur"""
+        server = ServerInstanceFactory(owner=user, name="Old Name")
+
+        url = reverse("server-detail", kwargs={"pk": server.id})
+        data = {"name": "Partially Updated"}
+
+        response = authenticated_client.patch(url, data, format="json")
+
+        assert response.status_code == status.HTTP_200_OK
+        server.refresh_from_db()
+        assert server.name == "Partially Updated"
+
 
 @pytest.mark.django_db
 class TestServerActions:
@@ -150,6 +235,16 @@ class TestServerActions:
         server.refresh_from_db()
         assert server.status == "stopping"
 
+    def test_stop_already_stopped_server(self, authenticated_client, user):
+        """Test arrêt d'un serveur déjà arrêté"""
+        server = ServerInstanceFactory(owner=user, status="stopped")
+
+        url = reverse("server-stop", kwargs={"pk": server.id})
+        response = authenticated_client.post(url)
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "error" in response.data
+
     def test_restart_server(self, authenticated_client, user):
         server = ServerInstanceFactory(owner=user, status="running")
 
@@ -179,6 +274,29 @@ class TestServerActions:
         response = authenticated_client.post(url)
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_update_running_server_with_force(self, authenticated_client, user):
+        """Test mise à jour d'un serveur en cours d'exécution avec force"""
+        server = ServerInstanceFactory(owner=user, status="running")
+
+        url = reverse("server-update-server", kwargs={"pk": server.id})
+        data = {"force": True}
+        response = authenticated_client.post(url, data, format="json")
+
+        assert response.status_code == status.HTTP_200_OK
+        server.refresh_from_db()
+        assert server.status == "updating"
+
+    def test_get_server_logs(self, authenticated_client, user):
+        """Test récupération des logs d'un serveur"""
+        server = ServerInstanceFactory(owner=user, container_id="test-container-123")
+
+        url = reverse("server-logs", kwargs={"pk": server.id})
+        response = authenticated_client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert "logs" in response.data
+        assert "container_id" in response.data
 
     def test_get_status_history(self, authenticated_client, user):
         server = ServerInstanceFactory(owner=user)
@@ -220,6 +338,49 @@ class TestServerModsManagement:
         from servers.models import ServerMod
 
         assert ServerMod.objects.filter(server=server, mod=mod).exists()
+
+    def test_get_server_mod_detail(self, authenticated_client, user):
+        """Test récupération d'un mod spécifique d'un serveur"""
+        game = GameFactory()
+        server = ServerInstanceFactory(owner=user, game=game)
+        mod = GameModFactory(game=game)
+        server_mod = ServerModFactory(server=server, mod=mod)
+
+        url = reverse("server-mod-detail", kwargs={"pk": server.id, "mod_id": str(server_mod.id)})
+        response = authenticated_client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["id"] == server_mod.id
+
+    def test_delete_server_mod(self, authenticated_client, user):
+        """Test suppression d'un mod d'un serveur"""
+        game = GameFactory()
+        server = ServerInstanceFactory(owner=user, game=game)
+        mod = GameModFactory(game=game)
+        server_mod = ServerModFactory(server=server, mod=mod)
+
+        url = reverse("server-mod-detail", kwargs={"pk": server.id, "mod_id": str(server_mod.id)})
+        response = authenticated_client.delete(url)
+
+        assert response.status_code == status.HTTP_204_NO_CONTENT
+        from servers.models import ServerMod
+
+        assert not ServerMod.objects.filter(id=server_mod.id).exists()
+
+    def test_update_server_mod(self, authenticated_client, user):
+        game = GameFactory()
+        server = ServerInstanceFactory(owner=user, game=game)
+        mod = GameModFactory(game=game)
+        server_mod = ServerModFactory(server=server, mod=mod, is_enabled=True)
+
+        url = reverse("servermod-detail", kwargs={"pk": server_mod.id})
+        data = {"mod_id": mod.id, "is_enabled": False}
+
+        response = authenticated_client.put(url, data, format="json")
+
+        assert response.status_code == status.HTTP_200_OK
+        server_mod.refresh_from_db()
+        assert server_mod.is_enabled is False
 
 
 @pytest.mark.django_db
@@ -283,3 +444,144 @@ class TestPermissions:
         response = api_client.post(url, data, format="json")
 
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+
+@pytest.mark.django_db
+class TestServerModViewSet:
+    def test_list_server_mods(self, authenticated_client, user):
+        """Test liste des mods de serveur"""
+        game = GameFactory()
+        server = ServerInstanceFactory(owner=user, game=game)
+        ServerModFactory.create_batch(3, server=server)
+
+        url = reverse("servermod-list")
+        response = authenticated_client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.data["results"]) == 3
+
+    def test_retrieve_server_mod(self, authenticated_client, user):
+        """Test récupération d'un mod de serveur"""
+        game = GameFactory()
+        server = ServerInstanceFactory(owner=user, game=game)
+        mod = GameModFactory(game=game)
+        server_mod = ServerModFactory(server=server, mod=mod)
+
+        url = reverse("servermod-detail", kwargs={"pk": server_mod.id})
+        response = authenticated_client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["id"] == server_mod.id
+
+    def test_update_server_mod(self, authenticated_client, user):
+        """Test mise à jour d'un mod de serveur"""
+        game = GameFactory()
+        server = ServerInstanceFactory(owner=user, game=game)
+        mod = GameModFactory(game=game)
+        server_mod = ServerModFactory(server=server, mod=mod, is_enabled=True)
+
+        url = reverse("servermod-detail", kwargs={"pk": server_mod.id})
+        data = {"mod_id": mod.id, "is_enabled": False, "custom_config": {"key": "value"}}
+
+        response = authenticated_client.put(url, data, format="json")
+
+        assert response.status_code == status.HTTP_200_OK
+        server_mod.refresh_from_db()
+        assert server_mod.is_enabled is False
+
+    def test_partial_update_server_mod(self, authenticated_client, user):
+        """Test mise à jour partielle d'un mod de serveur"""
+        game = GameFactory()
+        server = ServerInstanceFactory(owner=user, game=game)
+        mod = GameModFactory(game=game)
+        server_mod = ServerModFactory(server=server, mod=mod, is_enabled=True)
+
+        url = reverse("servermod-detail", kwargs={"pk": server_mod.id})
+        data = {"is_enabled": False}
+
+        response = authenticated_client.patch(url, data, format="json")
+
+        assert response.status_code == status.HTTP_200_OK
+        server_mod.refresh_from_db()
+        assert server_mod.is_enabled is False
+
+    def test_delete_server_mod(self, authenticated_client, user):
+        """Test suppression d'un mod de serveur"""
+        game = GameFactory()
+        server = ServerInstanceFactory(owner=user, game=game)
+        mod = GameModFactory(game=game)
+        server_mod = ServerModFactory(server=server, mod=mod)
+
+        url = reverse("servermod-detail", kwargs={"pk": server_mod.id})
+        response = authenticated_client.delete(url)
+
+        assert response.status_code == status.HTTP_204_NO_CONTENT
+        from servers.models import ServerMod
+
+        assert not ServerMod.objects.filter(id=server_mod.id).exists()
+
+
+@pytest.mark.django_db
+class TestServerPlayerViewSet:
+    def test_list_server_players_viewset(self, authenticated_client, user):
+        """Test liste des joueurs via viewset"""
+        server = ServerInstanceFactory(owner=user)
+        ServerPlayerFactory.create_batch(3, server=server)
+
+        url = reverse("serverplayer-list")
+        response = authenticated_client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.data["results"]) >= 3
+
+    def test_retrieve_server_player(self, authenticated_client, user):
+        """Test récupération d'un joueur"""
+        server = ServerInstanceFactory(owner=user)
+        player = ServerPlayerFactory(server=server, minecraft_username="TestPlayer")
+
+        url = reverse("serverplayer-detail", kwargs={"pk": player.id})
+        response = authenticated_client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["minecraft_username"] == "TestPlayer"
+
+    def test_update_server_player(self, authenticated_client, user):
+        """Test mise à jour d'un joueur"""
+        server = ServerInstanceFactory(owner=user)
+        player = ServerPlayerFactory(server=server, permission_level="player")
+
+        url = reverse("serverplayer-detail", kwargs={"pk": player.id})
+        data = {"permission_level": "moderator", "is_banned": False}
+
+        response = authenticated_client.put(url, data, format="json")
+
+        assert response.status_code == status.HTTP_200_OK
+        player.refresh_from_db()
+        assert player.permission_level == "moderator"
+
+    def test_partial_update_server_player(self, authenticated_client, user):
+        """Test mise à jour partielle d'un joueur"""
+        server = ServerInstanceFactory(owner=user)
+        player = ServerPlayerFactory(server=server, is_banned=False)
+
+        url = reverse("serverplayer-detail", kwargs={"pk": player.id})
+        data = {"is_banned": True}
+
+        response = authenticated_client.patch(url, data, format="json")
+
+        assert response.status_code == status.HTTP_200_OK
+        player.refresh_from_db()
+        assert player.is_banned is True
+
+    def test_delete_server_player(self, authenticated_client, user):
+        """Test suppression d'un joueur"""
+        server = ServerInstanceFactory(owner=user)
+        player = ServerPlayerFactory(server=server)
+
+        url = reverse("serverplayer-detail", kwargs={"pk": player.id})
+        response = authenticated_client.delete(url)
+
+        assert response.status_code == status.HTTP_204_NO_CONTENT
+        from servers.models import ServerPlayer
+
+        assert not ServerPlayer.objects.filter(id=player.id).exists()
