@@ -418,11 +418,9 @@ class ServerManager:
 
     def _prepare_volumes(self, server_instance, server_path: str) -> dict:
         """Prepare Docker volumes"""
-        return {
-            os.path.join(server_path, "data"): {"bind": "/data", "mode": "rw"},
-            os.path.join(server_path, "mods"): {"bind": "/mods", "mode": "rw"},
-            os.path.join(server_path, "config"): {"bind": "/config", "mode": "rw"},
-        }
+        config = server_instance.configuration
+        volumes_info = config.docker_volumes
+        return {os.path.join(server_path, key): volumes_info[key] for key in volumes_info}
 
     def _get_players_count(self, server_instance) -> int:
         """Get the number of connected players"""

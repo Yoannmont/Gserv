@@ -22,6 +22,13 @@ class ServerConfigurationSerializer(serializers.ModelSerializer):
             "cpu_limit",
             "custom_startup_command",
         ]
+    
+    def validate_docker_volumes(self, value):
+        if not isinstance(value, dict):
+            raise serializers.ValidationError("Docker volumes must be a dict")
+        if not "data" in value:
+            raise serializers.ValidationError("At least data folder need mapping")
+        return value
 
 
 class ServerModSerializer(serializers.ModelSerializer):
