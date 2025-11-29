@@ -168,6 +168,16 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"])
     def start(self, request, pk=None):
+        """
+        Start a server instance by creating a Docker container if needed and launching it.
+
+        This method checks if the server is already running, creates a Docker container
+        if it doesn't exist, and then asynchronously starts the server using Celery.
+        The server status is updated to STARTING and a status history entry is created.
+
+        Returns:
+            Response with success message or error if server is already running
+        """
         logger.info(f"[servers_instance_start] Server start request id={pk}")
         try:
             server = self.get_object()
@@ -212,6 +222,19 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"])
     def full_reset(self, request, pk=None):
+        """
+        Perform a complete reset of the server by deleting and recreating the container.
+
+        This method deletes the existing Docker container (optionally with data),
+        creates a new container, and starts it. Useful for troubleshooting or
+        resetting server state to defaults.
+
+        Request Body:
+            delete_data (bool, optional): If True, also deletes server data files
+
+        Returns:
+            Response with success message indicating reset completion
+        """
         logger.info(f"[servers_instance_full_reset] Server full reset request id={pk}")
         try:
             server = self.get_object()
@@ -317,6 +340,19 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"])
     def update_server(self, request, pk=None):
+        """
+        Update the server to the latest or specified game version.
+
+        This method updates the server's Docker image and configuration to match
+        a new game version. By default, the server must be stopped before updating,
+        unless the 'force' parameter is set to True.
+
+        Request Body:
+            force (bool, optional): If True, allows update even if server is running
+
+        Returns:
+            Response with success message or error if server must be stopped
+        """
         force = request.data.get("force", False)
         logger.info(f"[servers_instance_update_server] Server update request id={pk} force={force}")
         try:
@@ -392,6 +428,17 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["get", "post"])
     def mods(self, request, pk=None):
+        """
+        List or install mods on a server instance.
+
+        GET: Returns all mods currently installed on the server.
+        POST: Installs a new mod on the server. The mod data must be provided
+              in the request body and will be validated before installation.
+
+        Returns:
+            GET: List of installed mods
+            POST: Created mod data with 201 status
+        """
         try:
             server = self.get_object()
 
@@ -426,6 +473,21 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["get", "post", "delete"], url_path="mods/(?P<mod_id>[^/.]+)")
     def mod_detail(self, request, pk=None, mod_id=None):
+        """
+        Retrieve, update, or delete a specific mod installed on a server.
+
+        GET: Returns details of the specified mod.
+        POST/PATCH: Updates the mod configuration (partial update supported).
+        DELETE: Removes the mod from the server.
+
+        URL Parameters:
+            mod_id: The ID of the mod to operate on
+
+        Returns:
+            GET: Mod details
+            POST/PATCH: Updated mod data
+            DELETE: 204 No Content on success
+        """
         logger.info(f"[servers_instance_mod_detail] Mod detail request id={pk} mod_id={mod_id} method={request.method}")
         try:
             server = self.get_object()
@@ -464,6 +526,18 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["get", "post"])
     def players(self, request, pk=None):
+        """
+        List or add players (whitelist/permissions) for a server instance.
+
+        GET: Returns all players configured for the server, including their
+             permissions and ban status.
+        POST: Adds a new player to the server whitelist with specified
+              permissions. The player data must include Minecraft username/UUID.
+
+        Returns:
+            GET: List of server players
+            POST: Created player data with 201 status
+        """
         try:
             server = self.get_object()
 

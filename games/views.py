@@ -166,6 +166,18 @@ class GameViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["get"])
     def mods(self, request, slug=None):
+        """
+        Retrieve all active mods for a game, optionally filtered by version.
+
+        This method allows filtering mods by a specific game version using
+        the 'version' query parameter. Only active mods are returned.
+
+        Query Parameters:
+            version (str, optional): Filter mods compatible with this version
+
+        Returns:
+            Response containing list of active mods for the game
+        """
         version = request.query_params.get("version")
         logger.info(f"[games_game_mods] Get game mods request slug={slug} version={version}")
         try:

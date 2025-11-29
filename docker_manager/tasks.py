@@ -12,10 +12,10 @@ logger = logging.getLogger(__name__)
 @shared_task(bind=True, max_retries=3)
 def start_server_task(self, server_id: int):
     """
-    Tâche asynchrone pour démarrer un serveur
+    Async task to start a server
 
     Args:
-        server_id: ID du serveur à démarrer
+        server_id: ID of the server to start
     """
     try:
         from docker_manager.services.server_manager import get_server_manager
@@ -24,14 +24,14 @@ def start_server_task(self, server_id: int):
         server = ServerInstance.objects.get(id=server_id)
         manager = get_server_manager()
 
-        # Change le statut
+        # Change status
         server.status = "starting"
         server.save(update_fields=["status"])
 
-        # Démarre le serveur
+        # Start the server
         manager.start_server(server)
 
-        # Crée l'entrée d'historique
+        # Create history entry
         ServerStatus.objects.create(server=server, status=ServerInstance.RUNNING, message="Serveur démarré avec succès")
 
         logger.info(f"Serveur {server.name} démarré avec succès")
@@ -39,7 +39,7 @@ def start_server_task(self, server_id: int):
     except Exception as e:
         logger.error(f"Erreur lors du démarrage du serveur {server_id}: {e}")
 
-        # Met à jour le statut en erreur
+        # Update status to error
         try:
             server = ServerInstance.objects.get(id=server_id)
             server.status = "error"
@@ -49,18 +49,18 @@ def start_server_task(self, server_id: int):
         except:
             pass
 
-        # Retry si possible
+        # Retry if possible
         raise self.retry(exc=e, countdown=60)
 
 
 @shared_task(bind=True, max_retries=3)
 def stop_server_task(self, server_id: int, user_id: int = None):
     """
-    Tâche asynchrone pour arrêter un serveur
+    Async task to stop a server
 
     Args:
-        server_id: ID du serveur
-        user_id: ID de l'utilisateur qui arrête (optionnel)
+        server_id: Server ID
+        user_id: ID of the user stopping the server (optional)
     """
     try:
         from accounts.models import User
@@ -70,14 +70,14 @@ def stop_server_task(self, server_id: int, user_id: int = None):
         server = ServerInstance.objects.get(id=server_id)
         manager = get_server_manager()
 
-        # Change le statut
+        # Change status
         server.status = "stopping"
         server.save(update_fields=["status"])
 
-        # Arrête le serveur
+        # Stop the server
         manager.stop_server(server)
 
-        # Crée l'entrée d'historique
+        # Create history entry
         triggered_by = User.objects.get(id=user_id) if user_id else None
         ServerStatus.objects.create(
             server=server, status=ServerInstance.STOPPED, message="Serveur arrêté", triggered_by=triggered_by
@@ -93,11 +93,11 @@ def stop_server_task(self, server_id: int, user_id: int = None):
 @shared_task(bind=True, max_retries=3)
 def restart_server_task(self, server_id: int, user_id: int = None):
     """
-    Tâche asynchrone pour redémarrer un serveur
+    Async task to restart a server
 
     Args:
-        server_id: ID du serveur
-        user_id: ID de l'utilisateur qui redémarre (optionnel)
+        server_id: Server ID
+        user_id: ID of the user restarting the server (optional)
     """
     try:
         from accounts.models import User
@@ -107,14 +107,14 @@ def restart_server_task(self, server_id: int, user_id: int = None):
         server = ServerInstance.objects.get(id=server_id)
         manager = get_server_manager()
 
-        # Change le statut
+        # Change status
         server.status = "stopping"
         server.save(update_fields=["status"])
 
-        # Redémarre le serveur
+        # Restart the server
         manager.restart_server(server)
 
-        # Crée l'entrée d'historique
+        # Create history entry
         triggered_by = User.objects.get(id=user_id) if user_id else None
         ServerStatus.objects.create(
             server=server, status=ServerInstance.RUNNING, message="Serveur redémarré", triggered_by=triggered_by
@@ -130,12 +130,12 @@ def restart_server_task(self, server_id: int, user_id: int = None):
 @shared_task(bind=True, max_retries=3)
 def update_server_task(self, server_id: int, new_version_id: int = None, user_id: int = None):
     """
-    Tâche asynchrone pour mettre à jour un serveur
+    Async task to update a server
 
     Args:
-        server_id: ID du serveur
-        new_version_id: ID de la nouvelle version (optionnel)
-        user_id: ID de l'utilisateur (optionnel)
+        server_id: Server ID
+        new_version_id: ID of the new version (optional)
+        user_id: User ID (optional)
     """
     try:
         from accounts.models import User
@@ -146,19 +146,19 @@ def update_server_task(self, server_id: int, new_version_id: int = None, user_id
         server = ServerInstance.objects.get(id=server_id)
         manager = get_server_manager()
 
-        # Change le statut
+        # Change status
         server.status = "updating"
         server.save(update_fields=["status"])
 
-        # Récupère la nouvelle version si fournie
+        # Get the new version if provided
         new_version = None
         if new_version_id:
             new_version = GameVersion.objects.get(id=new_version_id)
 
-        # Met à jour le serveur
+        # Update the server
         manager.update_server(server, new_version)
 
-        # Crée l'entrée d'historique
+        # Create history entry
         triggered_by = User.objects.get(id=user_id) if user_id else None
         version_msg = f" vers {new_version.version}" if new_version else ""
         ServerStatus.objects.create(
@@ -186,8 +186,8 @@ def update_server_task(self, server_id: int, new_version_id: int = None, user_id
 @shared_task
 def collect_server_metrics():
     """
-    Collecte les métriques de tous les serveurs en cours d'exécution
-    Exécutée toutes les 30 secondes
+    Collect metrics from all running servers
+    Executed every 30 seconds
     """
     try:
         from docker_manager.services.server_manager import get_server_manager
@@ -222,8 +222,8 @@ def collect_server_metrics():
 @shared_task
 def check_auto_update_servers():
     """
-    Vérifie et met à jour les serveurs avec auto_update=True
-    Exécutée quotidiennement à 4h du matin
+    Check and update servers with auto_update=True
+    Executed daily at 4 AM
     """
     try:
         from games.models import GameVersion
@@ -233,7 +233,7 @@ def check_auto_update_servers():
 
         for server in servers:
             try:
-                # Vérifie s'il y a une version recommandée plus récente
+                # Check if there is a newer recommended version
                 recommended = (
                     GameVersion.objects.filter(game=server.game, is_recommended=True, is_stable=True)
                     .order_by("-release_date")
@@ -241,9 +241,9 @@ def check_auto_update_servers():
                 )
 
                 if recommended and recommended != server.game_version:
-                    logger.info(f"Mise à jour auto de {server.name} vers {recommended.version}")
+                    logger.info(f"Auto-updating {server.name} to {recommended.version}")
 
-                    # Lance la mise à jour
+                    # Launch the update
                     update_server_task.delay(server_id=server.id, new_version_id=recommended.id)
 
             except Exception as e:
@@ -258,8 +258,8 @@ def check_auto_update_servers():
 @shared_task
 def cleanup_old_metrics():
     """
-    Nettoie les anciennes métriques (> 7 jours)
-    Exécutée quotidiennement
+    Clean up old metrics (> 7 days)
+    Executed daily
     """
     try:
         from datetime import timedelta
@@ -278,8 +278,8 @@ def cleanup_old_metrics():
 @shared_task
 def cleanup_old_status_history():
     """
-    Nettoie l'ancien historique des statuts (> 30 jours)
-    Exécutée hebdomadairement
+    Clean up old status history (> 30 days)
+    Executed weekly
     """
     try:
         from datetime import timedelta
@@ -298,7 +298,7 @@ def cleanup_old_status_history():
 @shared_task
 def sync_container_status():
     """
-    Synchronise le statut des serveurs avec Docker
+    Synchronize server status with Docker
     """
     try:
         from docker_manager.services.docker_service import get_docker_service
@@ -311,7 +311,7 @@ def sync_container_status():
             try:
                 docker_status = docker_service.get_container_status(server.container_id)
 
-                # Mapping Docker -> Django status
+                # Docker -> Django status mapping
                 status_map = {"running": "running", "exited": "stopped", "dead": "error", "not_found": "error"}
 
                 new_status = status_map.get(docker_status, "error")
@@ -335,11 +335,11 @@ def sync_container_status():
 @shared_task
 def install_mod_task(server_id: int, mod_id: int):
     """
-    Tâche asynchrone pour installer un mod
+    Async task to install a mod
 
     Args:
-        server_id: ID du serveur
-        mod_id: ID du mod
+        server_id: Server ID
+        mod_id: Mod ID
     """
     try:
         from docker_manager.services.server_manager import get_server_manager
@@ -350,10 +350,10 @@ def install_mod_task(server_id: int, mod_id: int):
         mod = GameMod.objects.get(id=mod_id)
         manager = get_server_manager()
 
-        # Installe le mod
+        # Install the mod
         manager.install_mod(server, mod)
 
-        # Crée l'entrée ServerMod si elle n'existe pas
+        # Create ServerMod entry if it doesn't exist
         ServerMod.objects.get_or_create(server=server, mod=mod, defaults={"is_enabled": True})
 
         logger.info(f"Mod {mod.name} installé sur {server.name}")
@@ -366,11 +366,11 @@ def install_mod_task(server_id: int, mod_id: int):
 @shared_task
 def uninstall_mod_task(server_id: int, mod_id: int):
     """
-    Tâche asynchrone pour désinstaller un mod
+    Async task to uninstall a mod
 
     Args:
-        server_id: ID du serveur
-        mod_id: ID du mod
+        server_id: Server ID
+        mod_id: Mod ID
     """
     try:
         from docker_manager.services.server_manager import get_server_manager
@@ -381,10 +381,10 @@ def uninstall_mod_task(server_id: int, mod_id: int):
         mod = GameMod.objects.get(id=mod_id)
         manager = get_server_manager()
 
-        # Désinstalle le mod
+        # Uninstall the mod
         manager.uninstall_mod(server, mod)
 
-        # Supprime l'entrée ServerMod
+        # Delete the ServerMod entry
         ServerMod.objects.filter(server=server, mod=mod).delete()
 
         logger.info(f"Mod {mod.name} désinstallé de {server.name}")

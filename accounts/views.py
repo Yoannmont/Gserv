@@ -60,6 +60,16 @@ class UserViewSet(viewsets.ModelViewSet):
         return super().get_permissions()
 
     def create(self, request, *args, **kwargs):
+        """
+        Create a new user account and generate JWT tokens.
+
+        This method handles user registration with atomic transaction to ensure
+        data consistency. Upon successful creation, it generates both refresh
+        and access tokens for immediate authentication.
+
+        Returns:
+            Response containing user data and JWT tokens (refresh + access)
+        """
         email = request.data.get("email", "unknown")
         username = request.data.get("username", "unknown")
         logger.info(f"[accounts_user_create] User registration request email={email} username={username}")
@@ -205,6 +215,16 @@ class UserViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["post"])
     def change_password(self, request):
+        """
+        Change the authenticated user's password and regenerate JWT tokens.
+
+        This method validates the old password, updates it with the new one
+        using an atomic transaction, and generates new tokens to invalidate
+        any existing sessions.
+
+        Returns:
+            Response containing success message and new JWT tokens
+        """
         user_id = request.user.id
         logger.info(f"[accounts_user_change_password] Password change request id={user_id}")
         try:

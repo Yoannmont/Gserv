@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 class ServerManager:
-    """Gestionnaire de haut niveau pour les serveurs de jeux"""
+    """High-level manager for game servers"""
 
     def __init__(self):
         self.docker_service = get_docker_service()
@@ -19,31 +19,31 @@ class ServerManager:
 
     def create_server(self, server_instance) -> str:
         """
-        Crée un serveur de jeu complet
+        Create a complete game server
 
         Args:
-            server_instance: Instance de ServerInstance (model Django)
+            server_instance: ServerInstance instance (Django model)
 
         Returns:
-            container_id: ID du conteneur créé
+            container_id: ID of the created container
         """
         try:
-            logger.info(f"Création du serveur {server_instance.name}")
+            logger.info(f"Creating server {server_instance.name}")
 
-            # Crée les dossiers de données
+            # Create data directories
             server_path = self._create_server_directories(server_instance)
 
-            # Prépare la configuration
+            # Prepare configuration
             ports = self._prepare_ports(server_instance)
             environment = self._prepare_environment(server_instance)
             volumes = self._prepare_volumes(server_instance, server_path)
 
-            # Récupère les ressources
+            # Get resources
             config = server_instance.configuration
             memory_limit = config.memory_limit if hasattr(server_instance, "configuration") else "2g"
             cpu_limit = config.cpu_limit if hasattr(server_instance, "configuration") else 2.0
 
-            # Crée le conteneur Docker
+            # Create Docker container
             container_id = self.docker_service.create_container(
                 image=self._get_docker_image(server_instance),
                 name=f"server_{server_instance.id}_{server_instance.game.slug}",
@@ -63,24 +63,24 @@ class ServerManager:
 
     def start_server(self, server_instance) -> bool:
         """
-        Démarre un serveur
+        Start a server
 
         Args:
-            server_instance: Instance de ServerInstance
+            server_instance: ServerInstance instance
 
         Returns:
-            True si démarré avec succès
+            True if started successfully
         """
         try:
             if not server_instance.container_id:
-                raise ValueError("Le serveur n'a pas de container_id")
+                raise ValueError("Server has no container_id")
 
-            logger.info(f"Démarrage du serveur {server_instance.name}")
+            logger.info(f"Starting server {server_instance.name}")
 
-            # Démarre le conteneur
+            # Start the container
             self.docker_service.start_container(server_instance.container_id)
 
-            # Met à jour le timestamp
+            # Update timestamp
             server_instance.last_started_at = timezone.now()
             server_instance.status = ServerInstance.RUNNING
             server_instance.save(update_fields=["last_started_at", "status"])
@@ -95,22 +95,22 @@ class ServerManager:
 
     def stop_server(self, server_instance, timeout: int = 30) -> bool:
         """
-        Arrête un serveur
+        Stop a server
 
         Args:
-            server_instance: Instance de ServerInstance
-            timeout: Timeout avant force kill
+            server_instance: ServerInstance instance
+            timeout: Timeout before force kill
 
         Returns:
-            True si arrêté avec succès
+            True if stopped successfully
         """
         try:
             if not server_instance.container_id:
-                raise ValueError("Le serveur n'a pas de container_id")
+                raise ValueError("Server has no container_id")
 
-            logger.info(f"Arrêt du serveur {server_instance.name}")
+            logger.info(f"Stopping server {server_instance.name}")
 
-            # Arrête le conteneur
+            # Stop the container
             self.docker_service.stop_container(server_instance.container_id, timeout)
 
             server_instance.status = ServerInstance.STOPPED
@@ -124,20 +124,20 @@ class ServerManager:
 
     def restart_server(self, server_instance, timeout: int = 30) -> bool:
         """
-        Redémarre un serveur
+        Restart a server
 
         Args:
-            server_instance: Instance de ServerInstance
+            server_instance: ServerInstance instance
             timeout: Timeout
 
         Returns:
-            True si redémarré avec succès
+            True if restarted successfully
         """
         try:
             if not server_instance.container_id:
-                raise ValueError("Le serveur n'a pas de container_id")
+                raise ValueError("Server has no container_id")
 
-            logger.info(f"Redémarrage du serveur {server_instance.name}")
+            logger.info(f"Restarting server {server_instance.name}")
 
             self.docker_service.restart_container(server_instance.container_id, timeout)
 
@@ -155,30 +155,30 @@ class ServerManager:
 
     def update_server(self, server_instance, new_version=None) -> str:
         """
-        Met à jour un serveur vers une nouvelle version
+        Update a server to a new version
 
         Args:
-            server_instance: Instance de ServerInstance
-            new_version: Nouvelle GameVersion (optionnel)
+            server_instance: ServerInstance instance
+            new_version: New GameVersion (optional)
 
         Returns:
-            Nouveau container_id
+            New container_id
         """
         try:
-            logger.info(f"Mise à jour du serveur {server_instance.name}")
+            logger.info(f"Updating server {server_instance.name}")
 
-            # Arrête le serveur
+            # Stop the server
             if server_instance.is_running:
                 self.stop_server(server_instance)
 
-            # Détermine la nouvelle image
+            # Determine the new image
             if new_version:
                 server_instance.game_version = new_version
                 server_instance.save(update_fields=["game_version"])
 
             new_image = self._get_docker_image(server_instance)
 
-            # Met à jour le conteneur
+            # Update the container
             new_container_id = self.docker_service.update_container(
                 container_id=server_instance.container_id, image=new_image, preserve_data=True
             )
@@ -198,28 +198,28 @@ class ServerManager:
 
     def delete_server(self, server_instance, delete_data: bool = False) -> bool:
         """
-        Supprime un serveur
+        Delete a server
 
         Args:
-            server_instance: Instance de ServerInstance
-            delete_data: Supprimer aussi les données
+            server_instance: ServerInstance instance
+            delete_data: Also delete data files
 
         Returns:
-            True si supprimé avec succès
+            True if deleted successfully
         """
         try:
-            logger.info(f"Suppression du serveur {server_instance.name}")
+            logger.info(f"Deleting server {server_instance.name}")
 
             if server_instance.container_id:
-                # Arrête et supprime le conteneur
+                # Stop and remove the container
                 try:
                     self.docker_service.stop_container(server_instance.container_id)
                 except Exception:
-                    pass  # Déjà arrêté
+                    pass  # Already stopped
 
                 self.docker_service.remove_container(server_instance.container_id, force=True, volumes=delete_data)
 
-            # Supprime les fichiers si demandé
+            # Delete files if requested
             if delete_data:
                 server_path = self._get_server_path(server_instance)
                 if os.path.exists(server_path):
@@ -236,13 +236,13 @@ class ServerManager:
 
     def get_server_stats(self, server_instance) -> dict:
         """
-        Récupère les statistiques d'un serveur
+        Get server statistics
 
         Args:
-            server_instance: Instance de ServerInstance
+            server_instance: ServerInstance instance
 
         Returns:
-            Dictionnaire de statistiques
+            Dictionary of statistics
         """
         try:
             if not server_instance.container_id:
@@ -250,7 +250,7 @@ class ServerManager:
 
             stats = self.docker_service.get_container_stats(server_instance.container_id)
 
-            # Ajoute les infos spécifiques au jeu
+            # Add game-specific information
             stats["players_online"] = self._get_players_count(server_instance)
             stats["uptime"] = self._get_uptime(server_instance)
 
@@ -261,18 +261,18 @@ class ServerManager:
 
     def get_server_logs(self, server_instance, tail: int = 100) -> str:
         """
-        Récupère les logs d'un serveur
+        Get server logs
 
         Args:
-            server_instance: Instance de ServerInstance
-            tail: Nombre de lignes
+            server_instance: ServerInstance instance
+            tail: Number of lines
 
         Returns:
-            Logs du serveur
+            Server logs
         """
         try:
             if not server_instance.container_id:
-                return "Aucun conteneur associé"
+                return "No associated container"
 
             return self.docker_service.get_container_logs(server_instance.container_id, tail=tail)
 
@@ -281,18 +281,18 @@ class ServerManager:
 
     def execute_command(self, server_instance, command: str) -> str:
         """
-        Execute une commande dans le serveur
+        Execute a command in the server
 
         Args:
-            server_instance: Instance de ServerInstance
-            command: Commande à exécuter
+            server_instance: ServerInstance instance
+            command: Command to execute
 
         Returns:
-            Sortie de la commande
+            Command output
         """
         try:
             if not server_instance.container_id:
-                raise ValueError("Le serveur n'a pas de container_id")
+                raise ValueError("Server has no container_id")
 
             return self.docker_service.execute_command(server_instance.container_id, command)
 
@@ -302,23 +302,23 @@ class ServerManager:
 
     def install_mod(self, server_instance, mod) -> bool:
         """
-        Installe un mod sur un serveur
+        Install a mod on a server
 
         Args:
-            server_instance: Instance de ServerInstance
-            mod: Instance de GameMod
+            server_instance: ServerInstance instance
+            mod: GameMod instance
 
         Returns:
-            True si installé avec succès
+            True if installed successfully
         """
         try:
-            logger.info(f"Installation du mod {mod.name} sur {server_instance.name}")
+            logger.info(f"Installing mod {mod.name} on {server_instance.name}")
 
-            # Chemin du dossier mods
+            # Mods directory path
             mods_path = os.path.join(self._get_server_path(server_instance), "mods")
             os.makedirs(mods_path, exist_ok=True)
 
-            # Télécharge le mod
+            # Download the mod
             import requests
 
             response = requests.get(mod.download_url, stream=True)
@@ -338,17 +338,17 @@ class ServerManager:
 
     def uninstall_mod(self, server_instance, mod) -> bool:
         """
-        Désinstalle un mod d'un serveur
+        Uninstall a mod from a server
 
         Args:
-            server_instance: Instance de ServerInstance
-            mod: Instance de GameMod
+            server_instance: ServerInstance instance
+            mod: GameMod instance
 
         Returns:
-            True si désinstallé avec succès
+            True if uninstalled successfully
         """
         try:
-            logger.info(f"Désinstallation du mod {mod.name} de {server_instance.name}")
+            logger.info(f"Uninstalling mod {mod.name} from {server_instance.name}")
 
             mod_file_path = os.path.join(self._get_server_path(server_instance), "mods", mod.file_name)
 
@@ -362,10 +362,10 @@ class ServerManager:
             logger.error(f"Erreur lors de la désinstallation du mod: {e}")
             raise
 
-    # Méthodes privées
+    # Private methods
 
     def _create_server_directories(self, server_instance) -> str:
-        """Crée les dossiers nécessaires pour un serveur"""
+        """Create necessary directories for a server"""
         server_path = self._get_server_path(server_instance)
 
         directories = [
@@ -383,41 +383,41 @@ class ServerManager:
         return server_path
 
     def _get_server_path(self, server_instance) -> str:
-        """Retourne le chemin du serveur"""
+        """Return the server path"""
         return os.path.join(self.base_path, server_instance.game.slug, f"server_{server_instance.id}")
 
     def _get_docker_image(self, server_instance) -> str:
-        """Construit le nom complet de l'image Docker"""
+        """Build the full Docker image name"""
         game = server_instance.game
         version = server_instance.game_version
 
-        # Si la version a un tag Docker spécifique
+        # If the version has a specific Docker tag
         if version.docker_tag:
             return f"{game.docker_image}:{version.docker_tag}"
 
-        # Sinon utilise la version directement
+        # Otherwise use the version directly
         return f"{game.docker_image}:{version.version}"
 
     def _prepare_ports(self, server_instance) -> dict:
-        """Prépare le mapping des ports"""
+        """Prepare port mapping"""
         return server_instance.get_all_port_mappings()
 
     def _prepare_environment(self, server_instance) -> dict:
-        """Prépare les variables d'environnement"""
+        """Prepare environment variables"""
         env = {}
 
         if hasattr(server_instance, "configuration"):
             config = server_instance.configuration
             env.update(config.environment_variables)
 
-        # Ajoute des variables communes
+        # Add common variables
         env["SERVER_NAME"] = server_instance.name
         env["MAX_PLAYERS"] = str(server_instance.max_players)
 
         return env
 
     def _prepare_volumes(self, server_instance, server_path: str) -> dict:
-        """Prépare les volumes Docker"""
+        """Prepare Docker volumes"""
         return {
             os.path.join(server_path, "data"): {"bind": "/data", "mode": "rw"},
             os.path.join(server_path, "mods"): {"bind": "/mods", "mode": "rw"},
@@ -425,14 +425,14 @@ class ServerManager:
         }
 
     def _get_players_count(self, server_instance) -> int:
-        """Récupère le nombre de joueurs connectés"""
-        # TODO: Implémenter selon le jeu
-        # Pour Minecraft: query RCON ou parse logs
-        # Pour Palworld: API spécifique
+        """Get the number of connected players"""
+        # TODO: Implement based on game type
+        # For Minecraft: query RCON or parse logs
+        # For Palworld: specific API
         return 0
 
     def _get_uptime(self, server_instance) -> int:
-        """Récupère l'uptime en secondes"""
+        """Get uptime in seconds"""
         if not server_instance.last_started_at:
             return 0
 
@@ -440,12 +440,12 @@ class ServerManager:
         return int(delta.total_seconds())
 
 
-# Instance singleton
+# Singleton instance
 _server_manager = None
 
 
 def get_server_manager() -> ServerManager:
-    """Retourne l'instance singleton du gestionnaire de serveurs"""
+    """Return the singleton instance of the server manager"""
     global _server_manager
     if _server_manager is None:
         _server_manager = ServerManager()

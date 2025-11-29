@@ -15,7 +15,7 @@ from games.tests.games_factories import (
 class TestGameViewSet:
     def test_list_games(self, api_client):
         GameFactory.create_batch(3, is_active=True)
-        GameFactory(is_active=False)  # Ne doit pas apparaître
+        GameFactory(is_active=False)  # Should not appear
 
         url = reverse("game-list")
         response = api_client.get(url)
@@ -83,7 +83,7 @@ class TestGameViewSet:
         assert len(response.data) == 5
 
     def test_game_mods_filter_by_version(self, api_client):
-        """Test filtrage des mods par version"""
+        """Test filtering mods by version"""
         game = GameFactory(slug="minecraft")
         v1 = GameVersionFactory(game=game, version="1.19")
         v2 = GameVersionFactory(game=game, version="1.20")
@@ -96,7 +96,7 @@ class TestGameViewSet:
         response = api_client.get(url, {"version": "1.19"})
 
         assert response.status_code == status.HTTP_200_OK
-        assert len(response.data) == 2  # mod1 et mod3
+        assert len(response.data) == 2  # mod1 and mod3
 
     def test_update_game(self, admin_client):
         game = GameFactory(slug="test-game", name="Test Game")
@@ -163,7 +163,7 @@ class TestGameViewSet:
         assert not Game.objects.filter(id=game.id).exists()
 
     def test_game_configurations_action(self, api_client):
-        """Test récupération des configurations d'un jeu"""
+        """Test retrieving game configurations"""
         game = GameFactory(slug="minecraft")
         GameConfigurationFactory.create_batch(3, game=game)
 
@@ -210,7 +210,7 @@ class TestGameVersionViewSet:
         assert response.status_code == status.HTTP_201_CREATED
 
     def test_retrieve_version(self, api_client):
-        """Test récupération d'une version"""
+        """Test retrieving a version"""
         game = GameFactory()
         version = GameVersionFactory(game=game, version="1.20.0")
 
@@ -248,7 +248,7 @@ class TestGameVersionViewSet:
 class TestGameModViewSet:
     def test_list_mods(self, api_client):
         GameModFactory.create_batch(5, is_active=True)
-        GameModFactory(is_active=False)  # Ne doit pas apparaître
+        GameModFactory(is_active=False)  # Should not appear
 
         url = reverse("gamemod-list")
         response = api_client.get(url)
@@ -300,7 +300,7 @@ class TestGameModViewSet:
         assert response.status_code == status.HTTP_201_CREATED
 
     def test_retrieve_mod(self, api_client):
-        """Test récupération d'un mod"""
+        """Test retrieving a mod"""
         game = GameFactory()
         mod = GameModFactory(game=game, name="Test Mod")
 
@@ -351,7 +351,7 @@ class TestGameModViewSet:
         assert mod.slug == "new-mod"
 
     def test_partial_update_mod(self, admin_client):
-        """Test mise à jour partielle d'un mod"""
+        """Test partial update of a mod"""
         game = GameFactory()
         mod = GameModFactory(game=game, name="Test Mod")
 
@@ -365,7 +365,7 @@ class TestGameModViewSet:
         assert mod.description == "New description"
 
     def test_delete_mod(self, admin_client):
-        """Test suppression d'un mod"""
+        """Test deleting a mod"""
         game = GameFactory()
         mod = GameModFactory(game=game)
 
@@ -401,7 +401,7 @@ class TestGameConfigurationViewSet:
         assert len(response.data["results"]) == 2
 
     def test_retrieve_configuration(self, api_client):
-        """Test récupération d'une configuration"""
+        """Test retrieving a configuration"""
         game = GameFactory()
         config = GameConfigurationFactory(game=game, name="Test Config")
 
@@ -412,7 +412,7 @@ class TestGameConfigurationViewSet:
         assert response.data["name"] == "Test Config"
 
     def test_create_configuration_as_admin(self, admin_client):
-        """Test création d'une configuration"""
+        """Test creating a configuration"""
         game = GameFactory()
 
         url = reverse("gameconfiguration-list")
@@ -445,7 +445,7 @@ class TestGameConfigurationViewSet:
         assert config.is_default is False
 
     def test_partial_update_configuration(self, admin_client):
-        """Test mise à jour partielle d'une configuration"""
+        """Test partial update of a configuration"""
         game = GameFactory()
         config = GameConfigurationFactory(game=game, is_default=False)
 
@@ -459,7 +459,7 @@ class TestGameConfigurationViewSet:
         assert config.is_default is True
 
     def test_delete_configuration(self, admin_client):
-        """Test suppression d'une configuration"""
+        """Test deleting a configuration"""
         game = GameFactory()
         config = GameConfigurationFactory(game=game)
 
