@@ -106,16 +106,19 @@ class ServerConfiguration(models.Model):
         default=dict,
         verbose_name="Configuration",
         help_text="Configuration complète au format JSON",
+        blank=True,
     )
     environment_variables = models.JSONField(
         default=dict,
         verbose_name="Variables d'environnement",
         help_text="Variables d'environnement Docker",
+        blank=True,
     )
     docker_volumes = models.JSONField(
-        default=list,
+        default=dict,
         verbose_name="Volumes Docker",
-        help_text="Liste des volumes à monter",
+        help_text="Liste des volumes à monter (ex: {'data':  {'bind': '/palworld', 'mode': 'rw'})",
+        blank=True,
     )
     memory_limit = models.CharField(
         max_length=20,

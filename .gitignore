@@ -25,4 +25,5 @@ migrations
 .env
 .env.prod
 
-celerybeat-schedule
+celerybeat-schedule*
+*windows*
