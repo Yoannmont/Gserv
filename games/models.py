@@ -11,6 +11,12 @@ class Game(models.Model):
     icon = models.ImageField(upload_to="games/icons/", null=True, blank=True, verbose_name="Icône")
     docker_image = models.CharField(max_length=255, verbose_name="Image Docker", help_text="Ex: itzg/minecraft-server")
     default_port = models.IntegerField(verbose_name="Port par défaut")
+    additional_ports = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name="Ports additionnels",
+        help_text='Liste de ports supplémentaires: [{"port": 27015, "protocol": "udp", "description": "Query port"}]',
+    )
     documentation_url = models.URLField(blank=True, validators=[URLValidator()], verbose_name="URL de documentation")
     is_active = models.BooleanField(default=True, verbose_name="Actif")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -24,6 +30,27 @@ class Game(models.Model):
     def __str__(self):
         return self.name
 
+    def get_all_ports(self):
+        """Retourne tous les ports (défaut + additionnels)"""
+        ports = [
+            {
+                "port": self.default_port,
+                "protocol": "both",  # tcp et udp
+                "description": "Port principal",
+                "is_main": True,
+            }
+        ]
+
+        for additional_port in self.additional_ports:
+            ports.append({
+                "port": additional_port.get("port"),
+                "protocol": additional_port.get("protocol", "tcp"),
+                "description": additional_port.get("description", ""),
+                "is_main": False,
+            })
+
+        return ports
+
 
 class GameVersion(models.Model):
     game = models.ForeignKey(Game, on_delete=models.CASCADE, related_name="versions", verbose_name="Jeu")
@@ -33,6 +60,7 @@ class GameVersion(models.Model):
     is_recommended = models.BooleanField(default=False, verbose_name="Version recommandée")
     changelog = models.TextField(blank=True, verbose_name="Changelog")
     created_at = models.DateTimeField(auto_now_add=True)
+    docker_tag = models.CharField(max_length=40, verbose_name="Tag docker", help_text="Ex: java16")
 
     class Meta:
         verbose_name = "Version de jeu"
@@ -94,3 +122,31 @@ class GameConfiguration(models.Model):
 
     def __str__(self):
         return f"{self.game.name} - {self.name}"
+
+
+class PermissionRole(models.Model):
+    """Rôles de permissions spécifiques à chaque jeu"""
+
+    game = models.ForeignKey(Game, on_delete=models.CASCADE, related_name="permission_roles", verbose_name="Jeu")
+    name = models.CharField(
+        max_length=50, verbose_name="Nom du rôle", help_text="Ex: Player, Moderator, Admin, Operator"
+    )
+    slug = models.SlugField(verbose_name="Slug")
+    level = models.IntegerField(
+        default=0,
+        verbose_name="Niveau de permission",
+        help_text="Plus le nombre est élevé, plus les permissions sont importantes",
+    )
+    description = models.TextField(blank=True, verbose_name="Description des permissions")
+    color = models.CharField(
+        max_length=7, default="#808080", verbose_name="Couleur (hex)", help_text="Pour l'affichage dans le front"
+    )
+
+    class Meta:
+        verbose_name = "Rôle de permission"
+        verbose_name_plural = "Rôles de permissions"
+        unique_together = ["game", "slug"]
+        ordering = ["game", "-level"]
+
+    def __str__(self):
+        return f"{self.game.name} - {self.name} (lvl {self.level})"

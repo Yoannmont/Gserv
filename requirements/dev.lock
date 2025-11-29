@@ -8,6 +8,8 @@ asgiref==3.11.0
     # via
     #   django
     #   django-cors-headers
+asttokens==3.0.1
+    # via stack-data
 billiard==4.2.3
     # via celery
 celery==5.5.3
@@ -33,15 +35,26 @@ coverage==7.12.0
     # via
     #   -r requirements/requirements_dev.in
     #   pytest-cov
+decorator==5.2.1
+    # via ipython
+dj-database-url==3.0.1
+    # via django-configurations
+dj-email-url==1.0.6
+    # via django-configurations
+dj-search-url==0.1
+    # via django-configurations
 django==5.2.8
     # via
     #   -r requirements/requirements_prod.in
+    #   dj-database-url
     #   django-configurations
     #   django-cors-headers
     #   django-filter
     #   djangorestframework
     #   djangorestframework-simplejwt
     #   drf-yasg
+django-cache-url==3.4.5
+    # via django-configurations
 django-configurations==2.5.1
     # via -r requirements/requirements_prod.in
 django-cors-headers==4.9.0
@@ -59,6 +72,8 @@ docker==7.1.0
     # via -r requirements/requirements_prod.in
 drf-yasg==1.21.11
     # via -r requirements/requirements_prod.in
+executing==2.2.1
+    # via stack-data
 factory-boy==3.3.3
     # via -r requirements/requirements_dev.in
 faker==38.2.0
@@ -79,13 +94,25 @@ inflection==0.5.1
     # via drf-yasg
 iniconfig==2.3.0
     # via pytest
+ipython==9.7.0
+    # via -r requirements/requirements_prod.in
+ipython-pygments-lexers==1.1.1
+    # via ipython
+jedi==0.19.2
+    # via ipython
 kombu==5.5.4
     # via celery
+matplotlib-inline==0.2.1
+    # via ipython
 packaging==25.0
     # via
     #   drf-yasg
     #   kombu
     #   pytest
+parso==0.8.5
+    # via jedi
+pexpect==4.9.0
+    # via ipython
 pillow==12.0.0
     # via -r requirements/requirements_prod.in
 pluggy==1.6.0
@@ -93,9 +120,18 @@ pluggy==1.6.0
     #   pytest
     #   pytest-cov
 prompt-toolkit==3.0.52
-    # via click-repl
+    # via
+    #   click-repl
+    #   ipython
+ptyprocess==0.7.0
+    # via pexpect
+pure-eval==0.2.3
+    # via stack-data
 pygments==2.19.2
-    # via pytest
+    # via
+    #   ipython
+    #   ipython-pygments-lexers
+    #   pytest
 pyjwt==2.10.1
     # via djangorestframework-simplejwt
 pytest==9.0.1
@@ -136,6 +172,12 @@ sniffio==1.3.1
     # via anyio
 sqlparse==0.5.3
     # via django
+stack-data==0.6.3
+    # via ipython
+traitlets==5.14.3
+    # via
+    #   ipython
+    #   matplotlib-inline
 typing-extensions==4.15.0
     # via anyio
 tzdata==2025.2

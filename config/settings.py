@@ -14,14 +14,19 @@ import os
 from datetime import timedelta
 from pathlib import Path
 
-from configurations import Configuration
+from configurations import Configuration, values
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 # Application definition
 class Dev(Configuration):
+    @classmethod
+    def post_setup(cls):
+        for var_name in ["DOCKER_HOST", "CELERY_BROKER_URL", "CORS_ALLOWED_ORIGINS", "SERVERS_DATA_PATH"]:
+            assert getattr(cls, var_name), f"{var_name} not defined"
+
+    DOTENV = BASE_DIR / ".env"
     SECRET_KEY = "django-insecure-sqz8f9syr4_893ti*bv7e@))iu_878bke26*!4i_1k5=eq$^ly"
     DEBUG = True
     ALLOWED_HOSTS = []
@@ -44,6 +49,7 @@ class Dev(Configuration):
         "corsheaders",
         "drf_yasg",
         "monitoring",
+        "docker_manager",
     ]
 
     MIDDLEWARE = [
@@ -144,28 +150,18 @@ class Dev(Configuration):
     }
 
     # CORS
-    CORS_ALLOWED_ORIGINS = os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",")
+    CORS_ALLOWED_ORIGINS = values.ListValue()
 
     CORS_ALLOW_CREDENTIALS = True
 
     # Celery Configuration
-    CELERY_BROKER_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-    CELERY_RESULT_BACKEND = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-    CELERY_ACCEPT_CONTENT = ["json"]
-    CELERY_TASK_SERIALIZER = "json"
-    CELERY_RESULT_SERIALIZER = "json"
-    CELERY_TIMEZONE = TIME_ZONE
-
-    # Redis Cache
-    CACHES = {
-        "default": {
-            "BACKEND": "django.core.cache.backends.redis.RedisCache",
-            "LOCATION": os.getenv("REDIS_URL", "redis://localhost:6379/1"),
-        }
-    }
+    CELERY_BROKER_URL = values.Value()
 
     # Docker Configuration
-    DOCKER_HOST = os.getenv("DOCKER_HOST", "unix://var/run/docker.sock")
+    DOCKER_HOST = values.Value()
+
+    # Redis Cache
+    CACHES = values.CacheURLValue()
 
     # Logging
     LOGGING = {
@@ -220,6 +216,7 @@ class Dev(Configuration):
         "TOKEN_TYPE_CLAIM": "token_type",
         "JTI_CLAIM": "jti",
     }
+    SERVERS_DATA_PATH = values.Value()
 
 
 class Test(Dev):

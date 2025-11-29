@@ -7,13 +7,20 @@ from games.models import Game, GameMod, GameVersion
 class ServerInstance(models.Model):
     """Instance d'un serveur de jeu"""
 
+    STARTING = "starting"
+    RUNNING = "running"
+    STOPPING = "stopping"
+    STOPPED = "stopped"
+    UPDATING = "updating"
+    ERROR = "error"
+
     STATUS_CHOICES = [
-        ("stopped", "Arrêté"),
-        ("starting", "Démarrage"),
-        ("running", "En cours"),
-        ("stopping", "Arrêt en cours"),
-        ("updating", "Mise à jour"),
-        ("error", "Erreur"),
+        (STARTING, "Démarrage demandé"),
+        (RUNNING, "Démarré"),
+        (STOPPING, "Arrêt en cours"),
+        (STOPPED, "Arrêté"),
+        (UPDATING, "Mise à jour"),
+        (ERROR, "Erreur"),
     ]
 
     name = models.CharField(max_length=100, verbose_name="Nom du serveur")
@@ -34,6 +41,12 @@ class ServerInstance(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="stopped", verbose_name="Statut")
     container_id = models.CharField(max_length=64, blank=True, null=True, verbose_name="ID du conteneur Docker")
     port = models.IntegerField(verbose_name="Port", help_text="Port externe du serveur")
+    additional_ports = models.JSONField(
+        default=dict,
+        blank=True,
+        verbose_name="Ports additionnels mappés",
+        help_text='Mapping des ports additionnels: {"27015": 27016, "8212": 8213}',
+    )
     max_players = models.IntegerField(default=20, verbose_name="Nombre maximum de joueurs")
     auto_start = models.BooleanField(default=False, verbose_name="Démarrage automatique")
     auto_update = models.BooleanField(default=False, verbose_name="Mise à jour automatique")
@@ -53,7 +66,31 @@ class ServerInstance(models.Model):
 
     @property
     def is_running(self):
-        return self.status == "running"
+        return self.status == self.RUNNING
+
+    def get_all_port_mappings(self):
+        """Retourne tous les mappings de ports pour ce serveur"""
+        mappings = {}
+
+        # Port principal (TCP + UDP)
+        mappings[f"{self.game.default_port}/tcp"] = self.port
+        mappings[f"{self.game.default_port}/udp"] = self.port
+
+        # Ports additionnels
+        for game_port_info in self.game.additional_ports:
+            game_port = game_port_info["port"]
+            protocol = game_port_info.get("protocol", "tcp")
+
+            # Récupère le mapping personnalisé ou utilise le même port
+            host_port = self.additional_ports.get(str(game_port), game_port)
+
+            if protocol == "both":
+                mappings[f"{game_port}/tcp"] = host_port
+                mappings[f"{game_port}/udp"] = host_port
+            else:
+                mappings[f"{game_port}/{protocol}"] = host_port
+
+        return mappings
 
 
 class ServerConfiguration(models.Model):
@@ -203,3 +240,29 @@ class ServerPlayer(models.Model):
 
     def __str__(self):
         return f"{self.minecraft_username or self.user.username} sur {self.server.name}"
+
+
+class ServerMetrics(models.Model):
+    """Métriques en temps réel d'un serveur"""
+
+    server = models.ForeignKey(ServerInstance, on_delete=models.CASCADE, related_name="metrics", verbose_name="Serveur")
+    cpu_usage = models.FloatField(verbose_name="Utilisation CPU (%)")
+    memory_usage = models.FloatField(verbose_name="Utilisation mémoire (MB)")
+    memory_percent = models.FloatField(default=0, verbose_name="Utilisation mémoire (%)")
+    players_online = models.IntegerField(default=0, verbose_name="Joueurs connectés")
+    tps = models.FloatField(
+        null=True,
+        blank=True,
+        verbose_name="TPS (Ticks Per Second)",
+        help_text="Pour les jeux qui supportent cette métrique",
+    )
+    uptime_seconds = models.IntegerField(default=0, verbose_name="Uptime (secondes)")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Date de capture")
+
+    class Meta:
+        verbose_name = "Métrique de serveur"
+        verbose_name_plural = "Métriques de serveurs"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.server.name} - {self.created_at}"

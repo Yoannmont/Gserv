@@ -3,6 +3,9 @@ import logging
 from django.db import IntegrityError, models, transaction
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
+import docker_manager
+import docker_manager.services
+import docker_manager.services.server_manager
 from rest_framework import filters, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound
@@ -19,6 +22,8 @@ from servers.serializers import (
     ServerPlayerSerializer,
     ServerStatusSerializer,
 )
+
+from docker_manager.tasks import start_server_task, stop_server_task, restart_server_task, update_server_task
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +46,7 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
     search_fields = ["name", "description"]
     ordering_fields = ["name", "created_at", "last_started_at"]
     ordering = ["-created_at"]
+    SERVER_MANAGER = docker_manager.services.server_manager.get_server_manager()
 
     def get_queryset(self):
         user = self.request.user
@@ -66,15 +72,12 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
             raise
 
     def create(self, request, *args, **kwargs):
-        name = request.data.get("name", "unknown")
+        name = request.data.get("name")
         logger.info(f"[servers_instance_create] Server instance create request name={name}")
         try:
             response = super().create(request, *args, **kwargs)
             if response.status_code == 201:
-                server_id = response.data.get("id", "unknown")
-                logger.info(
-                    f"[servers_instance_create] Server instance created successfully id={server_id} name={name}"
-                )
+                logger.info(f"[servers_instance_create] Server instance created successfully with name={name}")
             return response
         except DRFValidationError as e:
             logger.warning(f"[servers_instance_create] Validation error name={name} errors={e.detail}")
@@ -169,7 +172,7 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
         try:
             server = self.get_object()
 
-            if server.status == "running":
+            if server.is_running:
                 logger.warning(f"[servers_instance_start] Server already running id={pk}")
                 return Response(
                     {"error": "Le serveur est déjà en cours d'exécution"},
@@ -177,18 +180,58 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
                 )
 
             with transaction.atomic():
-                server.status = "starting"
-                server.save()
+                if not server.container_id:
+                    container_id = self.SERVER_MANAGER.create_server(server)
+                    server.container_id = container_id
+                    server.save()
+            start_server_task.delay(server.pk)
 
-                ServerStatus.objects.create(
-                    server=server,
-                    status="starting",
-                    message="Démarrage du serveur",
-                    triggered_by=request.user,
-                )
-            logger.info(f"[servers_instance_start] Server start initiated id={pk}")
+            ServerStatus.objects.create(
+                server=server,
+                status=ServerInstance.STARTING,
+                message="Démarrage du serveur demandé",
+                triggered_by=request.user,
+            )
 
             return Response({"message": "Démarrage du serveur en cours"})
+        except NotFound:
+            logger.warning(f"[servers_instance_start] Server not found id={pk}")
+            raise
+        except IntegrityError as e:
+            logger.error(f"[servers_instance_start] Integrity error id={pk} error={str(e)}")
+            return Response(
+                {"error": "Erreur lors du démarrage du serveur"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        except Exception as e:
+            logger.error(f"[servers_instance_start] Unexpected error id={pk} error={str(e)}")
+            return Response(
+                {"error": "Erreur lors du démarrage du serveur"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    @action(detail=True, methods=["post"])
+    def full_reset(self, request, pk=None):
+        logger.info(f"[servers_instance_full_reset] Server full reset request id={pk}")
+        try:
+            server = self.get_object()
+            delete_data = request.data.get("delete_data", False)
+
+            self.SERVER_MANAGER.delete_server(server, delete_data=delete_data)
+            server.container_id = self.SERVER_MANAGER.create_server(server)
+            server.save()
+            start_server_task.delay(server.pk)
+            ServerStatus.objects.create(
+                server=server,
+                status=ServerInstance.STARTING,
+                message="Remise à zéro et redémarrage du serveur demandé.",
+                triggered_by=request.user,
+            )
+
+            msg = "Serveur remis à zéro et relancé"
+            if delete_data:
+                msg += ". Données supprimées"
+            return Response({"message": msg})
         except NotFound:
             logger.warning(f"[servers_instance_start] Server not found id={pk}")
             raise
@@ -211,18 +254,17 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
         try:
             server = self.get_object()
 
-            if server.status == "stopped":
+            if server.status == ServerInstance.STOPPED:
                 logger.warning(f"[servers_instance_stop] Server already stopped id={pk}")
                 return Response({"error": "Le serveur est déjà arrêté"}, status=status.HTTP_400_BAD_REQUEST)
 
-            with transaction.atomic():
-                server.status = "stopping"
-                server.save()
-
-                ServerStatus.objects.create(
-                    server=server, status="stopping", message="Arrêt du serveur", triggered_by=request.user
-                )
-            logger.info(f"[servers_instance_stop] Server stop initiated id={pk}")
+            stop_server_task.delay(server.pk)
+            ServerStatus.objects.create(
+                server=server,
+                status=ServerInstance.STOPPING,
+                message="Arrêt du serveur demandé",
+                triggered_by=request.user,
+            )
 
             return Response({"message": "Arrêt du serveur en cours"})
         except NotFound:
@@ -247,17 +289,14 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
         try:
             server = self.get_object()
 
-            with transaction.atomic():
-                server.status = "stopping"
-                server.save()
+            restart_server_task.delay(server.pk)
 
-                ServerStatus.objects.create(
-                    server=server,
-                    status="stopping",
-                    message="Redémarrage du serveur",
-                    triggered_by=request.user,
-                )
-            logger.info(f"[servers_instance_restart] Server restart initiated id={pk}")
+            ServerStatus.objects.create(
+                server=server,
+                status=ServerInstance.STARTING,
+                message="Redémarrage du serveur demandé.",
+                triggered_by=request.user,
+            )
 
             return Response({"message": "Redémarrage du serveur en cours"})
         except NotFound:
@@ -283,23 +322,21 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
         try:
             server = self.get_object()
 
-            if server.status == "running" and not force:
+            if server.is_running and not force:
                 logger.warning(f"[servers_instance_update_server] Server must be stopped to update id={pk}")
                 return Response(
                     {"error": "Le serveur doit être arrêté pour être mis à jour"},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            with transaction.atomic():
-                server.status = "updating"
-                server.save()
+            update_server_task(server.pk)
 
-                ServerStatus.objects.create(
-                    server=server,
-                    status="updating",
-                    message="Mise à jour du serveur",
-                    triggered_by=request.user,
-                )
+            ServerStatus.objects.create(
+                server=server,
+                status=ServerInstance.UPDATING,
+                message="Mise à jour du serveur demandée.",
+                triggered_by=request.user,
+            )
             logger.info(f"[servers_instance_update_server] Server update initiated id={pk}")
 
             return Response({"message": "Mise à jour du serveur en cours"})

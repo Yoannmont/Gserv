@@ -16,6 +16,7 @@ class GameVersionSerializer(serializers.ModelSerializer):
             "is_recommended",
             "changelog",
             "created_at",
+            "docker_tag",
             "game_id",
         ]
         read_only_fields = ["id", "created_at"]

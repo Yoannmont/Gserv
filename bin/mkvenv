@@ -20,10 +20,10 @@ source "$ENV_DIR/bin/activate"
 pip install uv
 
 # installing dependencies
-if [ "$MODE" = "prod" ]; then
-  echo "Prod mode"
-  uv pip sync "$REQS_DIR/prod.lock"
-else
+if [ "$MODE" = "dev" ]; then
   echo "Dev mode"
   uv pip sync "$REQS_DIR/dev.lock"
+else
+  echo "Prod mode"
+  uv pip sync "$REQS_DIR/prod.lock"
 fi

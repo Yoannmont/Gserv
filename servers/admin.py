@@ -3,6 +3,7 @@ from django.contrib import admin
 from servers.models import (
     ServerConfiguration,
     ServerInstance,
+    ServerMetrics,
     ServerMod,
     ServerPlayer,
     ServerStatus,
@@ -118,3 +119,9 @@ class ServerPlayerAdmin(admin.ModelAdmin):
     ]
 
     readonly_fields = ["last_seen"]
+
+
+@admin.register(ServerMetrics)
+class ServerMetricsAdmin(admin.ModelAdmin):
+    list_display = ["server", "created_at"]
+    readonly_fields = ["server", "created_at"]
