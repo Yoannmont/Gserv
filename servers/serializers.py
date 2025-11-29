@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from games.models import GameMod
+from games.models import Game, GameMod, GameVersion
 from games.serializers import GameModSerializer, GameSerializer, GameVersionSerializer
 from servers.models import (
     ServerConfiguration,
@@ -168,6 +168,7 @@ class ServerInstanceCreateSerializer(serializers.ModelSerializer):
             "game_version",
             "description",
             "port",
+            "additional_ports",
             "max_players",
             "auto_start",
             "auto_update",
@@ -175,6 +176,11 @@ class ServerInstanceCreateSerializer(serializers.ModelSerializer):
             "is_public",
             "configuration",
         ]
+
+    def validate(self, data):
+        if data["game_version"].game != data["game"]:
+            raise serializers.ValidationError("Game version and game do not match")
+        return data
 
     def create(self, validated_data):
         configuration_data = validated_data.pop("configuration", None)

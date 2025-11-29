@@ -12,7 +12,7 @@ class GameAdmin(admin.ModelAdmin):
 
     fieldsets = [
         ("Informations générales", {"fields": ("name", "slug", "description", "icon")}),
-        ("Configuration Docker", {"fields": ("docker_image", "default_port")}),
+        ("Configuration Docker", {"fields": ("docker_image", "default_port", "additional_ports")}),
         ("Documentation", {"fields": ("documentation_url",)}),
         ("Statut", {"fields": ("is_active",)}),
     ]

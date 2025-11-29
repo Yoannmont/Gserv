@@ -37,6 +37,7 @@ class GameSerializer(serializers.ModelSerializer):
             "icon",
             "docker_image",
             "default_port",
+            "additional_ports",
             "documentation_url",
             "is_active",
             "versions_count",

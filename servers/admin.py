@@ -45,13 +45,13 @@ class ServerInstanceAdmin(admin.ModelAdmin):
             "Informations générales",
             {"fields": ("name", "game", "game_version", "owner", "description")},
         ),
-        ("Configuration réseau", {"fields": ("port", "max_players")}),
+        ("Configuration réseau", {"fields": ("port", "additional_ports", "max_players")}),
         ("Statut", {"fields": ("status", "container_id")}),
         ("Options", {"fields": ("auto_start", "auto_update", "backup_enabled", "is_public")}),
         ("Dates", {"fields": ("last_started_at",), "classes": ("collapse",)}),
     ]
 
-    readonly_fields = ["container_id"]
+    readonly_fields = ["container_id", "owner"]
 
 
 @admin.register(ServerConfiguration)
