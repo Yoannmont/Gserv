@@ -1,17 +1,24 @@
 import logging
 
-from django.db import IntegrityError, models, transaction
-from django.shortcuts import get_object_or_404
+from django.db import IntegrityError, models
 from django_filters.rest_framework import DjangoFilterBackend
-import docker_manager
-import docker_manager.services
-import docker_manager.services.server_manager
 from rest_framework import filters, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound
 from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.response import Response
 
+import docker_manager
+import docker_manager.services
+import docker_manager.services.server_manager
+from docker_manager.tasks import (
+    create_server_task,
+    full_reset_server_task,
+    restart_server_task,
+    start_server_task,
+    stop_server_task,
+    update_server_task,
+)
 from servers.models import ServerInstance, ServerMod, ServerPlayer, ServerStatus
 from servers.serializers import (
     ServerInstanceCreateSerializer,
@@ -22,8 +29,6 @@ from servers.serializers import (
     ServerPlayerSerializer,
     ServerStatusSerializer,
 )
-
-from docker_manager.tasks import start_server_task, stop_server_task, restart_server_task, update_server_task
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +74,9 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
             return super().list(request, *args, **kwargs)
         except Exception as e:
             logger.error(f"[servers_instance_list] Error listing servers error={str(e)}")
-            raise
+            return Response(
+                {"error": "Erreur lors de la récupération des serveurs"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     def create(self, request, *args, **kwargs):
         name = request.data.get("name")
@@ -77,11 +84,21 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
         try:
             response = super().create(request, *args, **kwargs)
             if response.status_code == 201:
-                logger.info(f"[servers_instance_create] Server instance created successfully with name={name}")
-            return response
+                server_id = response.data.get("id")
+                server = ServerInstance.objects.get(id=server_id)
+                logger.info(f"[servers_instance_create] Server instance created successfully id={server_id} name={name}")
+                create_server_task.delay(server_id)
+                ServerStatus.objects.create(
+                    server=server,
+                    status=ServerInstance.CREATING,
+                    message="Création du serveur demandée",
+                    triggered_by=request.user,
+                )
+                return Response({"message": "Création du serveur en cours"}, status=status.HTTP_201_CREATED)
+            raise Exception("Server creation failed")
         except DRFValidationError as e:
             logger.warning(f"[servers_instance_create] Validation error name={name} errors={e.detail}")
-            raise
+            return Response({"error": "Erreur de validation", "details": e.detail}, status=status.HTTP_400_BAD_REQUEST)
         except IntegrityError as e:
             logger.error(f"[servers_instance_create] Integrity error name={name} error={str(e)}")
             return Response(
@@ -90,7 +107,7 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
             )
         except Exception as e:
             logger.error(f"[servers_instance_create] Unexpected error name={name} error={str(e)}")
-            raise
+            return Response({"error": "Erreur lors de la création du serveur"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def retrieve(self, request, *args, **kwargs):
         server_id = kwargs.get("pk")
@@ -99,10 +116,10 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
             return super().retrieve(request, *args, **kwargs)
         except NotFound:
             logger.warning(f"[servers_instance_retrieve] Server not found id={server_id}")
-            raise
+            return Response({"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             logger.error(f"[servers_instance_retrieve] Error retrieving server id={server_id} error={str(e)}")
-            raise
+            return Response({"error": "Erreur lors de la récupération du serveur"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def update(self, request, *args, **kwargs):
         server_id = kwargs.get("pk")
@@ -113,10 +130,10 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
             return response
         except DRFValidationError as e:
             logger.warning(f"[servers_instance_update] Validation error id={server_id} errors={e.detail}")
-            raise
+            return Response({"error": "Erreur de validation", "details": e.detail}, status=status.HTTP_400_BAD_REQUEST)
         except NotFound:
             logger.warning(f"[servers_instance_update] Server not found id={server_id}")
-            raise
+            return Response({"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
         except IntegrityError as e:
             logger.error(f"[servers_instance_update] Integrity error id={server_id} error={str(e)}")
             return Response(
@@ -125,23 +142,21 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
             )
         except Exception as e:
             logger.error(f"[servers_instance_update] Unexpected error id={server_id} error={str(e)}")
-            raise
+            return Response({"error": "Erreur lors de la mise à jour du serveur"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def partial_update(self, request, *args, **kwargs):
         server_id = kwargs.get("pk")
         logger.info(f"[servers_instance_partial_update] Server instance partial update request id={server_id}")
         try:
             response = super().partial_update(request, *args, **kwargs)
-            logger.info(
-                f"[servers_instance_partial_update] Server instance partially updated successfully id={server_id}"
-            )
+            logger.info(f"[servers_instance_partial_update] Server instance partially updated successfully id={server_id}")
             return response
         except DRFValidationError as e:
             logger.warning(f"[servers_instance_partial_update] Validation error id={server_id} errors={e.detail}")
-            raise
+            return Response({"error": "Erreur de validation", "details": e.detail}, status=status.HTTP_400_BAD_REQUEST)
         except NotFound:
             logger.warning(f"[servers_instance_partial_update] Server not found id={server_id}")
-            raise
+            return Response({"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
         except IntegrityError as e:
             logger.error(f"[servers_instance_partial_update] Integrity error id={server_id} error={str(e)}")
             return Response(
@@ -150,7 +165,9 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
             )
         except Exception as e:
             logger.error(f"[servers_instance_partial_update] Unexpected error id={server_id} error={str(e)}")
-            raise
+            return Response(
+                {"error": "Erreur lors de la mise à jour partielle du serveur"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     def destroy(self, request, *args, **kwargs):
         server_id = kwargs.get("pk")
@@ -161,10 +178,10 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
             return response
         except NotFound:
             logger.warning(f"[servers_instance_destroy] Server not found id={server_id}")
-            raise
+            return Response({"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             logger.error(f"[servers_instance_destroy] Error deleting server id={server_id} error={str(e)}")
-            raise
+            return Response({"error": "Erreur lors de la suppression du serveur"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=True, methods=["post"])
     def start(self, request, pk=None):
@@ -189,11 +206,6 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            with transaction.atomic():
-                if not server.container_id:
-                    container_id = self.SERVER_MANAGER.create_server(server)
-                    server.container_id = container_id
-                    server.save()
             start_server_task.delay(server.pk)
 
             ServerStatus.objects.create(
@@ -206,7 +218,7 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
             return Response({"message": "Démarrage du serveur en cours"})
         except NotFound:
             logger.warning(f"[servers_instance_start] Server not found id={pk}")
-            raise
+            return Response({"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
         except IntegrityError as e:
             logger.error(f"[servers_instance_start] Integrity error id={pk} error={str(e)}")
             return Response(
@@ -240,16 +252,7 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
             server = self.get_object()
             delete_data = request.data.get("delete_data", False)
 
-            self.SERVER_MANAGER.delete_server(server, delete_data=delete_data)
-            server.container_id = self.SERVER_MANAGER.create_server(server)
-            server.save()
-            start_server_task.delay(server.pk)
-            ServerStatus.objects.create(
-                server=server,
-                status=ServerInstance.STARTING,
-                message="Remise à zéro et redémarrage du serveur demandé.",
-                triggered_by=request.user,
-            )
+            full_reset_server_task.delay(server.pk, delete_data=delete_data, user_id=request.user.id)
 
             msg = "Serveur remis à zéro et relancé"
             if delete_data:
@@ -257,7 +260,7 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
             return Response({"message": msg})
         except NotFound:
             logger.warning(f"[servers_instance_start] Server not found id={pk}")
-            raise
+            return Response({"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
         except IntegrityError as e:
             logger.error(f"[servers_instance_start] Integrity error id={pk} error={str(e)}")
             return Response(
@@ -292,7 +295,7 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
             return Response({"message": "Arrêt du serveur en cours"})
         except NotFound:
             logger.warning(f"[servers_instance_stop] Server not found id={pk}")
-            raise
+            return Response({"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
         except IntegrityError as e:
             logger.error(f"[servers_instance_stop] Integrity error id={pk} error={str(e)}")
             return Response(
@@ -324,7 +327,7 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
             return Response({"message": "Redémarrage du serveur en cours"})
         except NotFound:
             logger.warning(f"[servers_instance_restart] Server not found id={pk}")
-            raise
+            return Response({"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
         except IntegrityError as e:
             logger.error(f"[servers_instance_restart] Integrity error id={pk} error={str(e)}")
             return Response(
@@ -378,7 +381,7 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
             return Response({"message": "Mise à jour du serveur en cours"})
         except NotFound:
             logger.warning(f"[servers_instance_update_server] Server not found id={pk}")
-            raise
+            return Response({"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
         except IntegrityError as e:
             logger.error(f"[servers_instance_update_server] Integrity error id={pk} error={str(e)}")
             return Response(
@@ -402,7 +405,7 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
             return Response(serializer.data)
         except NotFound:
             logger.warning(f"[servers_instance_status_history] Server not found id={pk}")
-            raise
+            return Response({"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             logger.error(f"[servers_instance_status_history] Error getting status history id={pk} error={str(e)}")
             return Response(
@@ -415,10 +418,11 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
         logger.info(f"[servers_instance_logs] Get server logs request id={pk}")
         try:
             server = self.get_object()
+            # TODO: implement socker to stream logs
             return Response({"logs": "Logs Docker à implémenter", "container_id": server.container_id})
         except NotFound:
             logger.warning(f"[servers_instance_logs] Server not found id={pk}")
-            raise
+            return Response({"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             logger.error(f"[servers_instance_logs] Error getting logs id={pk} error={str(e)}")
             return Response(
@@ -426,103 +430,103 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    @action(detail=True, methods=["get", "post"])
-    def mods(self, request, pk=None):
-        """
-        List or install mods on a server instance.
+    # @action(detail=True, methods=["get", "post"])
+    # def mods(self, request, pk=None):
+    #     """
+    #     List or install mods on a server instance.
 
-        GET: Returns all mods currently installed on the server.
-        POST: Installs a new mod on the server. The mod data must be provided
-              in the request body and will be validated before installation.
+    #     GET: Returns all mods currently installed on the server.
+    #     POST: Installs a new mod on the server. The mod data must be provided
+    #           in the request body and will be validated before installation.
 
-        Returns:
-            GET: List of installed mods
-            POST: Created mod data with 201 status
-        """
-        try:
-            server = self.get_object()
+    #     Returns:
+    #         GET: List of installed mods
+    #         POST: Created mod data with 201 status
+    #     """
+    #     try:
+    #         server = self.get_object()
 
-            if request.method == "GET":
-                logger.info(f"[servers_instance_mods] Get server mods request id={pk}")
-                mods = server.installed_mods.all()
-                serializer = ServerModSerializer(mods, many=True)
-                return Response(serializer.data)
+    #         if request.method == "GET":
+    #             logger.info(f"[servers_instance_mods] Get server mods request id={pk}")
+    #             mods = server.installed_mods.all()
+    #             serializer = ServerModSerializer(mods, many=True)
+    #             return Response(serializer.data)
 
-            logger.info(f"[servers_instance_mods] Install server mod request id={pk}")
-            serializer = ServerModSerializer(data=request.data)
-            serializer.is_valid(raise_exception=True)
-            serializer.save(server=server)
-            mod_id = serializer.data.get("id", "unknown")
-            logger.info(f"[servers_instance_mods] Server mod installed successfully id={pk} mod_id={mod_id}")
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        except NotFound:
-            logger.warning(f"[servers_instance_mods] Server not found id={pk}")
-            raise
-        except DRFValidationError as e:
-            logger.warning(f"[servers_instance_mods] Validation error id={pk} errors={e.detail}")
-            raise
-        except IntegrityError as e:
-            logger.error(f"[servers_instance_mods] Integrity error id={pk} error={str(e)}")
-            return Response(
-                {"error": "Erreur lors de l'installation du mod"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        except Exception as e:
-            logger.error(f"[servers_instance_mods] Unexpected error id={pk} error={str(e)}")
-            raise
+    #         logger.info(f"[servers_instance_mods] Install server mod request id={pk}")
+    #         serializer = ServerModSerializer(data=request.data)
+    #         serializer.is_valid(raise_exception=True)
+    #         serializer.save(server=server)
+    #         mod_id = serializer.data.get("id", "unknown")
+    #         logger.info(f"[servers_instance_mods] Server mod installed successfully id={pk} mod_id={mod_id}")
+    #         return Response(serializer.data, status=status.HTTP_201_CREATED)
+    #     except NotFound:
+    #         logger.warning(f"[servers_instance_mods] Server not found id={pk}")
+    #         raise
+    #     except DRFValidationError as e:
+    #         logger.warning(f"[servers_instance_mods] Validation error id={pk} errors={e.detail}")
+    #         raise
+    #     except IntegrityError as e:
+    #         logger.error(f"[servers_instance_mods] Integrity error id={pk} error={str(e)}")
+    #         return Response(
+    #             {"error": "Erreur lors de l'installation du mod"},
+    #             status=status.HTTP_400_BAD_REQUEST,
+    #         )
+    #     except Exception as e:
+    #         logger.error(f"[servers_instance_mods] Unexpected error id={pk} error={str(e)}")
+    #         raise
 
-    @action(detail=True, methods=["get", "post", "delete"], url_path="mods/(?P<mod_id>[^/.]+)")
-    def mod_detail(self, request, pk=None, mod_id=None):
-        """
-        Retrieve, update, or delete a specific mod installed on a server.
+    # @action(detail=True, methods=["get", "post", "delete"], url_path="mods/(?P<mod_id>[^/.]+)")
+    # def mod_detail(self, request, pk=None, mod_id=None):
+    #     """
+    #     Retrieve, update, or delete a specific mod installed on a server.
 
-        GET: Returns details of the specified mod.
-        POST/PATCH: Updates the mod configuration (partial update supported).
-        DELETE: Removes the mod from the server.
+    #     GET: Returns details of the specified mod.
+    #     POST/PATCH: Updates the mod configuration (partial update supported).
+    #     DELETE: Removes the mod from the server.
 
-        URL Parameters:
-            mod_id: The ID of the mod to operate on
+    #     URL Parameters:
+    #         mod_id: The ID of the mod to operate on
 
-        Returns:
-            GET: Mod details
-            POST/PATCH: Updated mod data
-            DELETE: 204 No Content on success
-        """
-        logger.info(f"[servers_instance_mod_detail] Mod detail request id={pk} mod_id={mod_id} method={request.method}")
-        try:
-            server = self.get_object()
-            server_mod = get_object_or_404(ServerMod, server=server, id=mod_id)
+    #     Returns:
+    #         GET: Mod details
+    #         POST/PATCH: Updated mod data
+    #         DELETE: 204 No Content on success
+    #     """
+    #     logger.info(f"[servers_instance_mod_detail] Mod detail request id={pk} mod_id={mod_id} method={request.method}")
+    #     try:
+    #         server = self.get_object()
+    #         server_mod = get_object_or_404(ServerMod, server=server, id=mod_id)
 
-            if request.method == "GET":
-                serializer = ServerModSerializer(server_mod)
-                return Response(serializer.data)
+    #         if request.method == "GET":
+    #             serializer = ServerModSerializer(server_mod)
+    #             return Response(serializer.data)
 
-            if request.method == "DELETE":
-                server_mod.delete()
-                logger.info(f"[servers_instance_mod_detail] Server mod deleted successfully id={pk} mod_id={mod_id}")
-                return Response(status=status.HTTP_204_NO_CONTENT)
+    #         if request.method == "DELETE":
+    #             server_mod.delete()
+    #             logger.info(f"[servers_instance_mod_detail] Server mod deleted successfully id={pk} mod_id={mod_id}")
+    #             return Response(status=status.HTTP_204_NO_CONTENT)
 
-            serializer = ServerModSerializer(server_mod, data=request.data, partial=True)
-            serializer.is_valid(raise_exception=True)
-            serializer.save()
-            logger.info(f"[servers_instance_mod_detail] Server mod updated successfully id={pk} mod_id={mod_id}")
+    #         serializer = ServerModSerializer(server_mod, data=request.data, partial=True)
+    #         serializer.is_valid(raise_exception=True)
+    #         serializer.save()
+    #         logger.info(f"[servers_instance_mod_detail] Server mod updated successfully id={pk} mod_id={mod_id}")
 
-            return Response(serializer.data)
-        except NotFound:
-            logger.warning(f"[servers_instance_mod_detail] Server or mod not found id={pk} mod_id={mod_id}")
-            raise
-        except DRFValidationError as e:
-            logger.warning(f"[servers_instance_mod_detail] Validation error id={pk} mod_id={mod_id} errors={e.detail}")
-            raise
-        except IntegrityError as e:
-            logger.error(f"[servers_instance_mod_detail] Integrity error id={pk} mod_id={mod_id} error={str(e)}")
-            return Response(
-                {"error": "Erreur lors de la mise à jour du mod"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        except Exception as e:
-            logger.error(f"[servers_instance_mod_detail] Unexpected error id={pk} mod_id={mod_id} error={str(e)}")
-            raise
+    #         return Response(serializer.data)
+    #     except NotFound:
+    #         logger.warning(f"[servers_instance_mod_detail] Server or mod not found id={pk} mod_id={mod_id}")
+    #         raise
+    #     except DRFValidationError as e:
+    #         logger.warning(f"[servers_instance_mod_detail] Validation error id={pk} mod_id={mod_id} errors={e.detail}")
+    #         raise
+    #     except IntegrityError as e:
+    #         logger.error(f"[servers_instance_mod_detail] Integrity error id={pk} mod_id={mod_id} error={str(e)}")
+    #         return Response(
+    #             {"error": "Erreur lors de la mise à jour du mod"},
+    #             status=status.HTTP_400_BAD_REQUEST,
+    #         )
+    #     except Exception as e:
+    #         logger.error(f"[servers_instance_mod_detail] Unexpected error id={pk} mod_id={mod_id} error={str(e)}")
+    #         raise
 
     @action(detail=True, methods=["get", "post"])
     def players(self, request, pk=None):
@@ -589,7 +593,7 @@ class ServerModViewSet(viewsets.ModelViewSet):
             return super().list(request, *args, **kwargs)
         except Exception as e:
             logger.error(f"[servers_mod_list] Error listing server mods error={str(e)}")
-            raise
+            return Response({"error": "Erreur lors de la récupération des mods"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def create(self, request, *args, **kwargs):
         logger.info("[servers_mod_create] Server mod create request")
@@ -601,7 +605,7 @@ class ServerModViewSet(viewsets.ModelViewSet):
             return response
         except DRFValidationError as e:
             logger.warning(f"[servers_mod_create] Validation error errors={e.detail}")
-            raise
+            return Response({"error": "Erreur de validation"}, status=status.HTTP_400_BAD_REQUEST)
         except IntegrityError as e:
             logger.error(f"[servers_mod_create] Integrity error error={str(e)}")
             return Response(
@@ -610,7 +614,7 @@ class ServerModViewSet(viewsets.ModelViewSet):
             )
         except Exception as e:
             logger.error(f"[servers_mod_create] Unexpected error error={str(e)}")
-            raise
+            return Response({"error": "Erreur lors de la création du mod"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def retrieve(self, request, *args, **kwargs):
         mod_id = kwargs.get("pk")
@@ -619,10 +623,10 @@ class ServerModViewSet(viewsets.ModelViewSet):
             return super().retrieve(request, *args, **kwargs)
         except NotFound:
             logger.warning(f"[servers_mod_retrieve] Mod not found id={mod_id}")
-            raise
+            return Response({"error": "Mod non trouvé"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             logger.error(f"[servers_mod_retrieve] Error retrieving mod id={mod_id} error={str(e)}")
-            raise
+            return Response({"error": "Erreur lors de la récupération du mod"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def update(self, request, *args, **kwargs):
         mod_id = kwargs.get("pk")
@@ -633,10 +637,10 @@ class ServerModViewSet(viewsets.ModelViewSet):
             return response
         except DRFValidationError as e:
             logger.warning(f"[servers_mod_update] Validation error id={mod_id} errors={e.detail}")
-            raise
+            return Response({"error": "Erreur de validation"}, status=status.HTTP_400_BAD_REQUEST)
         except NotFound:
             logger.warning(f"[servers_mod_update] Mod not found id={mod_id}")
-            raise
+            return Response({"error": "Mod non trouvé"}, status=status.HTTP_404_NOT_FOUND)
         except IntegrityError as e:
             logger.error(f"[servers_mod_update] Integrity error id={mod_id} error={str(e)}")
             return Response(
@@ -645,7 +649,7 @@ class ServerModViewSet(viewsets.ModelViewSet):
             )
         except Exception as e:
             logger.error(f"[servers_mod_update] Unexpected error id={mod_id} error={str(e)}")
-            raise
+            return Response({"error": "Erreur lors de la mise à jour du mod"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def partial_update(self, request, *args, **kwargs):
         mod_id = kwargs.get("pk")
@@ -656,10 +660,10 @@ class ServerModViewSet(viewsets.ModelViewSet):
             return response
         except DRFValidationError as e:
             logger.warning(f"[servers_mod_partial_update] Validation error id={mod_id} errors={e.detail}")
-            raise
+            return Response({"error": "Erreur de validation"}, status=status.HTTP_400_BAD_REQUEST)
         except NotFound:
             logger.warning(f"[servers_mod_partial_update] Mod not found id={mod_id}")
-            raise
+            return Response({"error": "Mod non trouvé"}, status=status.HTTP_404_NOT_FOUND)
         except IntegrityError as e:
             logger.error(f"[servers_mod_partial_update] Integrity error id={mod_id} error={str(e)}")
             return Response(
@@ -668,7 +672,9 @@ class ServerModViewSet(viewsets.ModelViewSet):
             )
         except Exception as e:
             logger.error(f"[servers_mod_partial_update] Unexpected error id={mod_id} error={str(e)}")
-            raise
+            return Response(
+                {"error": "Erreur lors de la mise à jour partielle du mod"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     def destroy(self, request, *args, **kwargs):
         mod_id = kwargs.get("pk")
@@ -679,10 +685,10 @@ class ServerModViewSet(viewsets.ModelViewSet):
             return response
         except NotFound:
             logger.warning(f"[servers_mod_destroy] Mod not found id={mod_id}")
-            raise
+            return Response({"error": "Mod non trouvé"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             logger.error(f"[servers_mod_destroy] Error deleting mod id={mod_id} error={str(e)}")
-            raise
+            return Response({"error": "Erreur lors de la suppression du mod"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class ServerPlayerViewSet(viewsets.ModelViewSet):
@@ -705,7 +711,7 @@ class ServerPlayerViewSet(viewsets.ModelViewSet):
             return super().list(request, *args, **kwargs)
         except Exception as e:
             logger.error(f"[servers_player_list] Error listing players error={str(e)}")
-            raise
+            return Response({"error": "Erreur lors de la récupération des joueurs"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def create(self, request, *args, **kwargs):
         username = request.data.get("minecraft_username", "unknown")
@@ -714,13 +720,11 @@ class ServerPlayerViewSet(viewsets.ModelViewSet):
             response = super().create(request, *args, **kwargs)
             if response.status_code == 201:
                 player_id = response.data.get("id", "unknown")
-                logger.info(
-                    f"[servers_player_create] Server player created successfully id={player_id} username={username}"
-                )
+                logger.info(f"[servers_player_create] Server player created successfully id={player_id} username={username}")
             return response
         except DRFValidationError as e:
             logger.warning(f"[servers_player_create] Validation error username={username} errors={e.detail}")
-            raise
+            return Response({"error": "Erreur de validation"}, status=status.HTTP_400_BAD_REQUEST)
         except IntegrityError as e:
             logger.error(f"[servers_player_create] Integrity error username={username} error={str(e)}")
             return Response(
@@ -729,7 +733,7 @@ class ServerPlayerViewSet(viewsets.ModelViewSet):
             )
         except Exception as e:
             logger.error(f"[servers_player_create] Unexpected error username={username} error={str(e)}")
-            raise
+            return Response({"error": "Erreur lors de la création du joueur"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def retrieve(self, request, *args, **kwargs):
         player_id = kwargs.get("pk")
@@ -738,10 +742,10 @@ class ServerPlayerViewSet(viewsets.ModelViewSet):
             return super().retrieve(request, *args, **kwargs)
         except NotFound:
             logger.warning(f"[servers_player_retrieve] Player not found id={player_id}")
-            raise
+            return Response({"error": "Joueur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             logger.error(f"[servers_player_retrieve] Error retrieving player id={player_id} error={str(e)}")
-            raise
+            return Response({"error": "Erreur lors de la récupération du joueur"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def update(self, request, *args, **kwargs):
         player_id = kwargs.get("pk")
@@ -752,10 +756,10 @@ class ServerPlayerViewSet(viewsets.ModelViewSet):
             return response
         except DRFValidationError as e:
             logger.warning(f"[servers_player_update] Validation error id={player_id} errors={e.detail}")
-            raise
+            return Response({"error": "Erreur de validation"}, status=status.HTTP_400_BAD_REQUEST)
         except NotFound:
             logger.warning(f"[servers_player_update] Player not found id={player_id}")
-            raise
+            return Response({"error": "Joueur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
         except IntegrityError as e:
             logger.error(f"[servers_player_update] Integrity error id={player_id} error={str(e)}")
             return Response(
@@ -764,7 +768,7 @@ class ServerPlayerViewSet(viewsets.ModelViewSet):
             )
         except Exception as e:
             logger.error(f"[servers_player_update] Unexpected error id={player_id} error={str(e)}")
-            raise
+            return Response({"error": "Erreur lors de la mise à jour du joueur"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def partial_update(self, request, *args, **kwargs):
         player_id = kwargs.get("pk")
@@ -775,10 +779,10 @@ class ServerPlayerViewSet(viewsets.ModelViewSet):
             return response
         except DRFValidationError as e:
             logger.warning(f"[servers_player_partial_update] Validation error id={player_id} errors={e.detail}")
-            raise
+            return Response({"error": "Erreur de validation"}, status=status.HTTP_400_BAD_REQUEST)
         except NotFound:
             logger.warning(f"[servers_player_partial_update] Player not found id={player_id}")
-            raise
+            return Response({"error": "Joueur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
         except IntegrityError as e:
             logger.error(f"[servers_player_partial_update] Integrity error id={player_id} error={str(e)}")
             return Response(
@@ -787,7 +791,9 @@ class ServerPlayerViewSet(viewsets.ModelViewSet):
             )
         except Exception as e:
             logger.error(f"[servers_player_partial_update] Unexpected error id={player_id} error={str(e)}")
-            raise
+            return Response(
+                {"error": "Erreur lors de la mise à jour partielle du joueur"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     def destroy(self, request, *args, **kwargs):
         player_id = kwargs.get("pk")
@@ -798,7 +804,7 @@ class ServerPlayerViewSet(viewsets.ModelViewSet):
             return response
         except NotFound:
             logger.warning(f"[servers_player_destroy] Player not found id={player_id}")
-            raise
+            return Response({"error": "Joueur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             logger.error(f"[servers_player_destroy] Error deleting player id={player_id} error={str(e)}")
-            raise
+            return Response({"error": "Erreur lors de la suppression du joueur"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

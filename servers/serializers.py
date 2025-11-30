@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from games.models import Game, GameMod, GameVersion
+from games.models import GameMod
 from games.serializers import GameModSerializer, GameSerializer, GameVersionSerializer
 from servers.models import (
     ServerConfiguration,
@@ -22,11 +22,11 @@ class ServerConfigurationSerializer(serializers.ModelSerializer):
             "cpu_limit",
             "custom_startup_command",
         ]
-    
+
     def validate_docker_volumes(self, value):
         if not isinstance(value, dict):
             raise serializers.ValidationError("Docker volumes must be a dict")
-        if not "data" in value:
+        if "data" not in value:
             raise serializers.ValidationError("At least data folder need mapping")
         return value
 
@@ -111,10 +111,10 @@ class ServerInstanceListSerializer(serializers.ModelSerializer):
 
 
 class ServerInstanceDetailSerializer(serializers.ModelSerializer):
-    game = GameSerializer(read_only=True)
-    game_version = GameVersionSerializer(read_only=True)
+    game = GameSerializer()
+    game_version = GameVersionSerializer()
     owner_username = serializers.CharField(source="owner.username", read_only=True)
-    configuration = ServerConfigurationSerializer(read_only=True)
+    configuration = ServerConfigurationSerializer()
     installed_mods = ServerModSerializer(many=True, read_only=True)
     players = ServerPlayerSerializer(many=True, read_only=True)
     latest_status = serializers.SerializerMethodField()
@@ -163,6 +163,47 @@ class ServerInstanceDetailSerializer(serializers.ModelSerializer):
             return ServerStatusSerializer(latest).data
         return None
 
+    def validate(self, data):
+        if data["game_version"].game != data["game"]:
+            raise serializers.ValidationError("Game version and game do not match")
+        return data
+
+    def create(self, validated_data):
+        configuration_data = validated_data.pop("configuration", None)
+        owner = self.context["request"].user
+        default_configuration = {
+            "config_data": {},
+            "environment_variables": {},
+            "docker_volumes": [],
+            "memory_limit": "2g",
+            "cpu_limit": 2.0,
+            "custom_startup_command": "",
+        }
+
+        server = ServerInstance.objects.create(owner=owner, **validated_data)
+        if not configuration_data or not ServerConfigurationSerializer(data=configuration_data).is_valid():
+            server.configuration = ServerConfiguration.objects.create(server=server, **default_configuration)
+        else:
+            server.configuration = ServerConfiguration.objects.create(server=server, **configuration_data)
+        server.save()
+
+        return server
+
+    def update(self, instance, validated_data):
+        configuration_data = validated_data.pop("configuration", None)
+
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+
+        if configuration_data and hasattr(instance, "configuration"):
+            config = instance.configuration
+            for attr, value in configuration_data.items():
+                setattr(config, attr, value)
+            config.save()
+
+        return instance
+
 
 class ServerInstanceCreateSerializer(serializers.ModelSerializer):
     configuration = ServerConfigurationSerializer(required=False)
@@ -170,6 +211,7 @@ class ServerInstanceCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = ServerInstance
         fields = [
+            "id",
             "name",
             "game",
             "game_version",
@@ -183,6 +225,7 @@ class ServerInstanceCreateSerializer(serializers.ModelSerializer):
             "is_public",
             "configuration",
         ]
+        read_only_fields = ["id"]
 
     def validate(self, data):
         if data["game_version"].game != data["game"]:
@@ -243,8 +286,3 @@ class ServerInstanceUpdateSerializer(serializers.ModelSerializer):
             config.save()
 
         return instance
-
-
-class ServerActionSerializer(serializers.Serializer):
-    action = serializers.ChoiceField(choices=["start", "stop", "restart", "update"])
-    force = serializers.BooleanField(default=False)

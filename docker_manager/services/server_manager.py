@@ -1,6 +1,7 @@
 import logging
 import os
 
+import docker
 from django.conf import settings
 from django.utils import timezone
 
@@ -28,7 +29,7 @@ class ServerManager:
             container_id: ID of the created container
         """
         try:
-            logger.info(f"Creating server {server_instance.name}")
+            logger.info(f"[server_manager] Creating server {server_instance.name}")
 
             # Create data directories
             server_path = self._create_server_directories(server_instance)
@@ -54,11 +55,11 @@ class ServerManager:
                 cpu_limit=cpu_limit,
             )
 
-            logger.info(f"Serveur {server_instance.name} créé avec container_id: {container_id}")
+            logger.info(f"[server_manager] Server {server_instance.name} created with container_id: {container_id}")
             return container_id
 
         except Exception as e:
-            logger.error(f"Erreur lors de la création du serveur: {e}")
+            logger.error("[server_manager] Error during server creation: %r", e)
             raise
 
     def start_server(self, server_instance) -> bool:
@@ -75,20 +76,20 @@ class ServerManager:
             if not server_instance.container_id:
                 raise ValueError("Server has no container_id")
 
-            logger.info(f"Starting server {server_instance.name}")
+            logger.info(f"[server_manager] Starting server {server_instance.name}")
 
             # Start the container
             self.docker_service.start_container(server_instance.container_id)
 
             # Update timestamp
             server_instance.last_started_at = timezone.now()
-            server_instance.status = ServerInstance.RUNNING
+            server_instance.status = ServerInstance.STARTED
             server_instance.save(update_fields=["last_started_at", "status"])
 
             return True
 
         except DockerServiceError as e:
-            logger.error(f"Erreur Docker lors du démarrage: {e}")
+            logger.error("[server_manager] Docker error during server start: %r", e)
             server_instance.status = ServerInstance.ERROR
             server_instance.save(update_fields=["status"])
             raise
@@ -108,7 +109,7 @@ class ServerManager:
             if not server_instance.container_id:
                 raise ValueError("Server has no container_id")
 
-            logger.info(f"Stopping server {server_instance.name}")
+            logger.info(f"[server_manager] Stopping server {server_instance.name}")
 
             # Stop the container
             self.docker_service.stop_container(server_instance.container_id, timeout)
@@ -119,7 +120,7 @@ class ServerManager:
             return True
 
         except DockerServiceError as e:
-            logger.error(f"Erreur Docker lors de l'arrêt: {e}")
+            logger.error("[server_manager] Docker error during server stop: %r", e)
             raise
 
     def restart_server(self, server_instance, timeout: int = 30) -> bool:
@@ -137,18 +138,18 @@ class ServerManager:
             if not server_instance.container_id:
                 raise ValueError("Server has no container_id")
 
-            logger.info(f"Restarting server {server_instance.name}")
+            logger.info(f"[server_manager] Restarting server {server_instance.name}")
 
             self.docker_service.restart_container(server_instance.container_id, timeout)
 
             server_instance.last_started_at = timezone.now()
-            server_instance.status = ServerInstance.RUNNING
+            server_instance.status = ServerInstance.STARTED
             server_instance.save(update_fields=["last_started_at", "status"])
 
             return True
 
         except DockerServiceError as e:
-            logger.error(f"Erreur Docker lors du redémarrage: {e}")
+            logger.error("[server_manager] Docker error during server restart: %r", e)
             server_instance.status = "error"
             server_instance.save(update_fields=["status"])
             raise
@@ -165,7 +166,7 @@ class ServerManager:
             New container_id
         """
         try:
-            logger.info(f"Updating server {server_instance.name}")
+            logger.info(f"[server_manager] Updating server {server_instance.name}")
 
             # Stop the server
             if server_instance.is_running:
@@ -187,12 +188,12 @@ class ServerManager:
             server_instance.status = ServerInstance.STOPPED
             server_instance.save(update_fields=["container_id", "status"])
 
-            logger.info(f"Serveur {server_instance.name} mis à jour")
+            logger.info(f"[server_manager] Server {server_instance.name} updated")
             return new_container_id
 
         except DockerServiceError as e:
-            logger.error(f"Erreur lors de la mise à jour: {e}")
-            server_instance.status = "error"
+            logger.error("[server_manager] Error during server update: %r", e)
+            server_instance.status = ServerInstance.ERROR
             server_instance.save(update_fields=["status"])
             raise
 
@@ -208,16 +209,17 @@ class ServerManager:
             True if deleted successfully
         """
         try:
-            logger.info(f"Deleting server {server_instance.name}")
+            logger.info(f"[server_manager] Deleting server {server_instance.name}")
+            container_id = server_instance.container_id
 
-            if server_instance.container_id:
+            if container_id:
                 # Stop and remove the container
                 try:
-                    self.docker_service.stop_container(server_instance.container_id)
-                except Exception:
-                    pass  # Already stopped
+                    self.docker_service.stop_container(container_id)
+                except docker.errors.NotFound:
+                    logger.warning("[server_manager] Couldn't find container %s to stop it. Skipping", server_instance)
 
-                self.docker_service.remove_container(server_instance.container_id, force=True, volumes=delete_data)
+                self.docker_service.remove_container(container_id, force=True, volumes=delete_data)
 
             # Delete files if requested
             if delete_data:
@@ -226,12 +228,12 @@ class ServerManager:
                     import shutil
 
                     shutil.rmtree(server_path)
-                    logger.info(f"Données du serveur supprimées: {server_path}")
+                    logger.info(f"[server_manager] Server data deleted: {server_path}")
 
             return True
 
         except DockerServiceError as e:
-            logger.error(f"Erreur lors de la suppression: {e}")
+            logger.error("[server_manager] Error during server deletion: %r", e)
             raise
 
     def get_server_stats(self, server_instance) -> dict:
@@ -277,6 +279,7 @@ class ServerManager:
             return self.docker_service.get_container_logs(server_instance.container_id, tail=tail)
 
         except DockerServiceError as e:
+            logger.error("[server_manager] Error during server logs retrieval: %r", e)
             return f"Erreur lors de la récupération des logs: {e}"
 
     def execute_command(self, server_instance, command: str) -> str:
@@ -297,7 +300,7 @@ class ServerManager:
             return self.docker_service.execute_command(server_instance.container_id, command)
 
         except DockerServiceError as e:
-            logger.error(f"Erreur lors de l'exécution de la commande: {e}")
+            logger.error("[server_manager] Error during command execution: %r", e)
             raise
 
     def install_mod(self, server_instance, mod) -> bool:
@@ -312,7 +315,7 @@ class ServerManager:
             True if installed successfully
         """
         try:
-            logger.info(f"Installing mod {mod.name} on {server_instance.name}")
+            logger.info(f"[server_manager] Installing mod {mod.name} on {server_instance.name}")
 
             # Mods directory path
             mods_path = os.path.join(self._get_server_path(server_instance), "mods")
@@ -329,11 +332,11 @@ class ServerManager:
                 for chunk in response.iter_content(chunk_size=8192):
                     f.write(chunk)
 
-            logger.info(f"Mod {mod.name} installé: {mod_file_path}")
+            logger.info(f"[server_manager] Mod {mod.name} installed: {mod_file_path}")
             return True
 
         except Exception as e:
-            logger.error(f"Erreur lors de l'installation du mod: {e}")
+            logger.error("[server_manager] Error during mod installation: %r", e)
             raise
 
     def uninstall_mod(self, server_instance, mod) -> bool:
@@ -348,18 +351,18 @@ class ServerManager:
             True if uninstalled successfully
         """
         try:
-            logger.info(f"Uninstalling mod {mod.name} from {server_instance.name}")
+            logger.info(f"[server_manager] Uninstalling mod {mod.name} from {server_instance.name}")
 
             mod_file_path = os.path.join(self._get_server_path(server_instance), "mods", mod.file_name)
 
             if os.path.exists(mod_file_path):
                 os.remove(mod_file_path)
-                logger.info(f"Mod {mod.name} désinstallé")
+                logger.info(f"[server_manager] Mod {mod.name} uninstalled")
 
             return True
 
         except Exception as e:
-            logger.error(f"Erreur lors de la désinstallation du mod: {e}")
+            logger.error("[server_manager] Error during mod uninstallation: %r", e)
             raise
 
     # Private methods
@@ -379,7 +382,7 @@ class ServerManager:
         for directory in directories:
             os.makedirs(directory, exist_ok=True)
 
-        logger.info(f"Dossiers créés pour {server_instance.name}: {server_path}")
+        logger.info(f"[server_manager] Directories created for {server_instance.name}: {server_path}")
         return server_path
 
     def _get_server_path(self, server_instance) -> str:
@@ -395,8 +398,8 @@ class ServerManager:
         if version.docker_tag:
             return f"{game.docker_image}:{version.docker_tag}"
 
-        # Otherwise use the version directly
-        return f"{game.docker_image}:{version.version}"
+        # Otherwise use the docker image name only
+        return f"{game.docker_image}"
 
     def _prepare_ports(self, server_instance) -> dict:
         """Prepare port mapping"""

@@ -136,7 +136,7 @@ class TestServerInstanceViewSet:
 
         assert response.status_code == status.HTTP_201_CREATED
         assert response.data["name"] == "My Server"
-        server = ServerInstance.objects.first()
+        server = ServerInstance.objects.get(id=response.data["id"])
 
         url = reverse("server-detail", kwargs={"pk": server.id})
         data = {

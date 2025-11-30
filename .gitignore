@@ -22,8 +22,12 @@ htmlcov
 
 migrations
 
+media
+static
+
 .env
 .env.prod
 
 celerybeat-schedule*
 *windows*
+

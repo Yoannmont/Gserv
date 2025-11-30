@@ -11,13 +11,13 @@ os.environ.setdefault("DJANGO_CONFIGURATION", "Test")
 
 @pytest.fixture
 def api_client():
-    """Client API de base"""
+    """Base API client"""
     return APIClient()
 
 
 @pytest.fixture
 def authenticated_client(api_client, user):
-    """Client API authentifié avec un utilisateur normal"""
+    """Authenticated API client with a normal user"""
     refresh = RefreshToken.for_user(user)
     api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {refresh.access_token}")
     return api_client
@@ -25,7 +25,7 @@ def authenticated_client(api_client, user):
 
 @pytest.fixture
 def admin_client(api_client, admin_user):
-    """Client API authentifié avec un admin"""
+    """Authenticated API client with an admin"""
     refresh = RefreshToken.for_user(admin_user)
     api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {refresh.access_token}")
     return api_client
@@ -33,7 +33,7 @@ def admin_client(api_client, admin_user):
 
 @pytest.fixture
 def user(django_user_model):
-    """Utilisateur normal"""
+    """Normal user"""
     user = django_user_model.objects.create_user(
         username="testuser", email="test@example.com", password="testpass123", role="user"
     )
@@ -44,7 +44,7 @@ def user(django_user_model):
 
 @pytest.fixture
 def admin_user(django_user_model):
-    """Utilisateur admin"""
+    """Admin user"""
     user = django_user_model.objects.create_user(
         username="admin", email="admin@example.com", password="adminpass123", role="admin"
     )
@@ -54,7 +54,7 @@ def admin_user(django_user_model):
 
 @pytest.fixture
 def other_user(django_user_model):
-    """Autre utilisateur pour les tests de permissions"""
+    """Other user for permission tests"""
     user = django_user_model.objects.create_user(
         username="otheruser", email="other@example.com", password="otherpass123", role="user"
     )

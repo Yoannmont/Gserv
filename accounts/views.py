@@ -1,5 +1,4 @@
 import logging
-import traceback
 
 from django.contrib.auth import logout
 from django.db import IntegrityError, transaction
@@ -70,8 +69,8 @@ class UserViewSet(viewsets.ModelViewSet):
         Returns:
             Response containing user data and JWT tokens (refresh + access)
         """
-        email = request.data.get("email", "unknown")
-        username = request.data.get("username", "unknown")
+        email = request.data.get("email")
+        username = request.data.get("username")
         logger.info(f"[accounts_user_create] User registration request email={email} username={username}")
         try:
             serializer = self.get_serializer(data=request.data)
@@ -79,9 +78,7 @@ class UserViewSet(viewsets.ModelViewSet):
             with transaction.atomic():
                 user = serializer.save()
                 refresh = RefreshToken.for_user(user)
-            logger.info(
-                f"[accounts_user_create] User created successfully id={user.id} email={user.email} username={username}"
-            )
+            logger.info(f"[accounts_user_create] User created successfully id={user.id} email={user.email} username={username}")
 
             return Response(
                 {
@@ -94,10 +91,11 @@ class UserViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_201_CREATED,
             )
         except DRFValidationError as e:
-            logger.warning(
-                f"[accounts_user_create] Validation error email={email} username={username} errors={e.detail}"
+            logger.warning(f"[accounts_user_create] Validation error email={email} username={username} errors={e.detail}")
+            return Response(
+                {"error": "Erreur de validation", "details": e.detail},
+                status=status.HTTP_400_BAD_REQUEST,
             )
-            raise
         except IntegrityError as e:
             logger.error(f"[accounts_user_create] Integrity error email={email} username={username} error={str(e)}")
             return Response(
@@ -116,8 +114,11 @@ class UserViewSet(viewsets.ModelViewSet):
         try:
             return super().list(request, *args, **kwargs)
         except Exception as e:
-            logger.error(f"[accounts_user_list] Error listing users error={str(e)} traceback={traceback.format_exc()}")
-            raise
+            logger.error(f"[accounts_user_list] Error listing users, error={str(e)}")
+            return Response(
+                {"error": "Une erreur est survenue lors de la récupération des utilisateurs"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     def retrieve(self, request, *args, **kwargs):
         user_id = kwargs.get("pk")
@@ -126,7 +127,10 @@ class UserViewSet(viewsets.ModelViewSet):
             return super().retrieve(request, *args, **kwargs)
         except Exception as e:
             logger.error(f"[accounts_user_retrieve] Error retrieving user id={user_id} error={str(e)}")
-            raise
+            return Response(
+                {"error": "Une erreur est survenue lors de la récupération de l'utilisateur"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     def update(self, request, *args, **kwargs):
         user_id = kwargs.get("pk")
@@ -137,7 +141,10 @@ class UserViewSet(viewsets.ModelViewSet):
             return response
         except DRFValidationError as e:
             logger.warning(f"[accounts_user_update] Validation error id={user_id} errors={e.detail}")
-            raise
+            return Response(
+                {"error": "Erreur de validation", "details": e.detail},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         except IntegrityError as e:
             logger.error(f"[accounts_user_update] Integrity error id={user_id} error={str(e)}")
             return Response(
@@ -146,7 +153,10 @@ class UserViewSet(viewsets.ModelViewSet):
             )
         except Exception as e:
             logger.error(f"[accounts_user_update] Unexpected error id={user_id} error={str(e)}")
-            raise
+            return Response(
+                {"error": "Une erreur est survenue lors de la mise à jour de l'utilisateur"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     def partial_update(self, request, *args, **kwargs):
         user_id = kwargs.get("pk")
@@ -157,7 +167,10 @@ class UserViewSet(viewsets.ModelViewSet):
             return response
         except DRFValidationError as e:
             logger.warning(f"[accounts_user_partial_update] Validation error id={user_id} errors={e.detail}")
-            raise
+            return Response(
+                {"error": "Erreur de validation", "details": e.detail},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         except IntegrityError as e:
             logger.error(f"[accounts_user_partial_update] Integrity error id={user_id} error={str(e)}")
             return Response(
@@ -166,7 +179,10 @@ class UserViewSet(viewsets.ModelViewSet):
             )
         except Exception as e:
             logger.error(f"[accounts_user_partial_update] Unexpected error id={user_id} error={str(e)}")
-            raise
+            return Response(
+                {"error": "Une erreur est survenue lors de la mise à jour partielle de l'utilisateur"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     def destroy(self, request, *args, **kwargs):
         user_id = kwargs.get("pk")
@@ -177,11 +193,19 @@ class UserViewSet(viewsets.ModelViewSet):
             return response
         except Exception as e:
             logger.error(f"[accounts_user_destroy] Error deleting user id={user_id} error={str(e)}")
-            raise
+            return Response(
+                {"error": "Une erreur est survenue lors de la suppression de l'utilisateur"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     @action(detail=False, methods=["get"])
     def me(self, request):
         user_id = request.user.id if request.user.is_authenticated else None
+        if not user_id:
+            return Response(
+                {"error": "Utilisateur non authentifié"},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
         logger.info(f"[accounts_user_me] Get current user info id={user_id}")
         try:
             serializer = self.get_serializer(request.user)
@@ -196,6 +220,11 @@ class UserViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=["post"])
     def logout(self, request):
         user_id = request.user.id if request.user.is_authenticated else None
+        if not user_id:
+            return Response(
+                {"error": "Utilisateur non authentifié"},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
         logger.info(f"[accounts_user_logout] User logout request id={user_id}")
         try:
             refresh_token = request.data.get("refresh")
@@ -211,7 +240,7 @@ class UserViewSet(viewsets.ModelViewSet):
             return Response({"error": "Token invalide"}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             logger.error(f"[accounts_user_logout] Logout error id={user_id} error={str(e)}")
-            return Response({"error": f"Erreur lors de la déconnexion; {e}"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "Erreur lors de la déconnexion"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=["post"])
     def change_password(self, request):
@@ -250,7 +279,10 @@ class UserViewSet(viewsets.ModelViewSet):
             )
         except DRFValidationError as e:
             logger.warning(f"[accounts_user_change_password] Validation error id={user_id} errors={e.detail}")
-            raise
+            return Response(
+                {"error": "Erreur de validation", "details": e.detail},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         except Exception as e:
             logger.error(f"[accounts_user_change_password] Unexpected error id={user_id} error={str(e)}")
             return Response(
@@ -271,16 +303,19 @@ class UserViewSet(viewsets.ModelViewSet):
             return Response(UserSerializer(request.user).data)
         except DRFValidationError as e:
             logger.warning(f"[accounts_user_update_profile] Validation error id={user_id} errors={e.detail}")
-            raise
+            return Response(
+                {"error": "Erreur de validation", "details": e.detail},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         except IntegrityError as e:
             logger.error(f"[accounts_user_update_profile] Integrity error id={user_id} error={str(e)}")
             return Response(
-                {"error": "Erreur de contrainte d'intégrité lors de la mise à jour du profil"},
+                {"error": "Erreur de contrainte d'intégrité lors de la mise à jour"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         except Exception as e:
             logger.error(f"[accounts_user_update_profile] Unexpected error id={user_id} error={str(e)}")
             return Response(
-                {"error": "Une erreur est survenue lors de la mise à jour du profil"},
+                {"error": "Une erreur est survenue lors de la mise à jour"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )

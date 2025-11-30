@@ -203,11 +203,21 @@ class TestGameVersionViewSet:
         game = GameFactory()
 
         url = reverse("gameversion-list")
-        data = {"game_id": game.id, "version": "1.21.0", "is_stable": True, "is_recommended": True}
+        data = {
+            "game_id": game.id,
+            "version": "1.21.0",
+            "is_stable": True,
+            "is_recommended": True,
+            "docker_tag": "latest",
+        }
 
         response = admin_client.post(url, data, format="json")
 
         assert response.status_code == status.HTTP_201_CREATED
+        assert response.data["version"] == "1.21.0"
+        assert response.data["is_stable"] is True
+        assert response.data["is_recommended"] is True
+        assert response.data["docker_tag"] == "latest"
 
     def test_retrieve_version(self, api_client):
         """Test retrieving a version"""
@@ -225,7 +235,13 @@ class TestGameVersionViewSet:
         version = GameVersionFactory(game=game, version="1.20.0", is_stable=False)
 
         url = reverse("gameversion-detail", kwargs={"pk": version.id})
-        data = {"game_id": game.id, "version": "1.20.1", "is_stable": True}
+        data = {
+            "game_id": game.id,
+            "version": "1.20.1",
+            "is_stable": True,
+            "is_recommended": True,
+            "docker_tag": "latest",
+        }
 
         response = admin_client.put(url, data, format="json")
 
@@ -233,6 +249,8 @@ class TestGameVersionViewSet:
         version.refresh_from_db()
         assert version.version == "1.20.1"
         assert version.is_stable is True
+        assert version.is_recommended is True
+        assert version.docker_tag == "latest"
 
     def test_delete_version(self, admin_client):
         game = GameFactory()

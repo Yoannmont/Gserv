@@ -5,18 +5,22 @@ from games.models import Game, GameMod, GameVersion
 
 
 class ServerInstance(models.Model):
-    """Instance d'un serveur de jeu"""
+    """Instance of a game server"""
 
+    CREATING = "creating"
+    CREATED = "created"
     STARTING = "starting"
-    RUNNING = "running"
+    STARTED = "running"
     STOPPING = "stopping"
     STOPPED = "stopped"
     UPDATING = "updating"
     ERROR = "error"
 
     STATUS_CHOICES = [
+        (CREATING, "Création en cours"),
+        (CREATED, "Créé"),
         (STARTING, "Démarrage demandé"),
-        (RUNNING, "Démarré"),
+        (STARTED, "Démarré"),
         (STOPPING, "Arrêt en cours"),
         (STOPPED, "Arrêté"),
         (UPDATING, "Mise à jour"),
@@ -38,7 +42,7 @@ class ServerInstance(models.Model):
         verbose_name="Propriétaire",
     )
     description = models.TextField(blank=True, verbose_name="Description")
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="stopped", verbose_name="Statut")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=CREATING, verbose_name="Statut")
     container_id = models.CharField(max_length=64, blank=True, null=True, verbose_name="ID du conteneur Docker")
     port = models.IntegerField(verbose_name="Port", help_text="Port externe du serveur")
     additional_ports = models.JSONField(
@@ -66,7 +70,7 @@ class ServerInstance(models.Model):
 
     @property
     def is_running(self):
-        return self.status == self.RUNNING
+        return self.status == self.STARTED
 
     def get_all_port_mappings(self):
         """Return all port mappings for this server"""
@@ -94,7 +98,7 @@ class ServerInstance(models.Model):
 
 
 class ServerConfiguration(models.Model):
-    """Configuration spécifique d'une instance de serveur"""
+    """Configuration specific to a server instance"""
 
     server = models.OneToOneField(
         ServerInstance,
@@ -140,7 +144,7 @@ class ServerConfiguration(models.Model):
 
 
 class ServerMod(models.Model):
-    """Mods installés sur une instance de serveur"""
+    """Mods installed on a game server instance"""
 
     server = models.ForeignKey(
         ServerInstance,
@@ -170,7 +174,7 @@ class ServerMod(models.Model):
 
 
 class ServerStatus(models.Model):
-    """Historique des statuts d'un serveur"""
+    """History of the status of a server"""
 
     server = models.ForeignKey(
         ServerInstance,
@@ -200,7 +204,7 @@ class ServerStatus(models.Model):
 
 
 class ServerPlayer(models.Model):
-    """Joueurs autorisés sur un serveur (whitelist/permissions)"""
+    """Players allowed on a server (whitelist/permissions)"""
 
     PERMISSION_CHOICES = [
         ("player", "Joueur"),
@@ -246,7 +250,7 @@ class ServerPlayer(models.Model):
 
 
 class ServerMetrics(models.Model):
-    """Métriques en temps réel d'un serveur"""
+    """Real-time metrics of a server"""
 
     server = models.ForeignKey(ServerInstance, on_delete=models.CASCADE, related_name="metrics", verbose_name="Serveur")
     cpu_usage = models.FloatField(verbose_name="Utilisation CPU (%)")

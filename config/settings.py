@@ -18,6 +18,9 @@ from configurations import Configuration, values
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+LOG_DIR = BASE_DIR / "logs"
+os.makedirs(LOG_DIR, exist_ok=True)
+
 
 # Application definition
 class Dev(Configuration):
@@ -26,19 +29,22 @@ class Dev(Configuration):
         for var_name in ["DOCKER_HOST", "CELERY_BROKER_URL", "CORS_ALLOWED_ORIGINS", "SERVERS_DATA_PATH"]:
             assert getattr(cls, var_name), f"{var_name} not defined"
 
+    # region Basic Django --------------------------------------------------------------------------------------
     DOTENV = BASE_DIR / ".env"
     SECRET_KEY = "django-insecure-sqz8f9syr4_893ti*bv7e@))iu_878bke26*!4i_1k5=eq$^ly"
     DEBUG = True
     ALLOWED_HOSTS = []
 
     INSTALLED_APPS = [
+        "daphne",
+        "accounts",
         "django.contrib.admin",
         "django.contrib.auth",
         "django.contrib.contenttypes",
         "django.contrib.sessions",
         "django.contrib.messages",
         "django.contrib.staticfiles",
-        "accounts",
+        "channels",
         "games",
         "servers",
         "api",
@@ -81,9 +87,18 @@ class Dev(Configuration):
     ]
 
     WSGI_APPLICATION = "config.wsgi.application"
+    ASGI_APPLICATION = "config.asgi.application"
 
-    # Database
-    # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
+    # region Channels --------------------------------------------------------------------------------------
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {
+                "hosts": [("127.0.0.1", 6379)],
+            },
+        },
+    }
+    # endregion
 
     DATABASES = {
         "default": {
@@ -93,9 +108,6 @@ class Dev(Configuration):
     }
 
     AUTH_USER_MODEL = "accounts.User"
-
-    # Password validation
-    # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
 
     AUTH_PASSWORD_VALIDATORS = [
         {
@@ -112,25 +124,75 @@ class Dev(Configuration):
         },
     ]
 
-    # Internationalization
-    # https://docs.djangoproject.com/en/5.2/topics/i18n/
-
     LANGUAGE_CODE = "fr-fr"
     TIME_ZONE = "Europe/Paris"
     USE_I18N = True
     USE_TZ = True
 
-    # Static files (CSS, JavaScript, Images)
-    # https://docs.djangoproject.com/en/5.2/howto/static-files/
-
     STATIC_URL = "static/"
-
-    # Default primary key field type
-    # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
+    STATIC_ROOT = BASE_DIR / "static"
+    MEDIA_URL = "media/"
+    MEDIA_ROOT = BASE_DIR / "media"
 
     DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-    # REST Framework
+    CACHES = values.CacheURLValue()
+
+    LOGGING = {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "verbose": {
+                "format": "[%(levelname)s] - %(asctime)s - %(filename)s:%(lineno)d - %(message)s",
+                "datefmt": "%Y-%m-%d %H:%M:%S",
+            },
+        },
+        "handlers": {
+            "console": {
+                "class": "logging.StreamHandler",
+                "formatter": "verbose",
+            },
+            "file": {
+                "class": "logging.FileHandler",
+                "filename": LOG_DIR / "django.log",
+                "formatter": "verbose",
+            },
+            "celery_worker": {
+                "class": "logging.FileHandler",
+                "filename": LOG_DIR / "celery_worker.log",
+                "formatter": "verbose",
+            },
+            "celery_beat": {
+                "class": "logging.FileHandler",
+                "filename": LOG_DIR / "celery_beat.log",
+                "formatter": "verbose",
+            },
+        },
+        "root": {
+            "handlers": ["console", "file"],
+            "level": "INFO",
+        },
+        "loggers": {
+            "django": {
+                "handlers": ["console", "file"],
+                "level": os.getenv("DJANGO_LOG_LEVEL", "INFO"),
+                "propagate": False,
+            },
+            "celery_worker": {
+                "handlers": ["console", "file", "celery_worker"],
+                "level": os.getenv("CELERY_WORKER_LOG_LEVEL", "INFO"),
+                "propagate": False,
+            },
+            "celery_beat": {
+                "handlers": ["console", "file", "celery_beat"],
+                "level": os.getenv("CELERY_LOG_LEVEL", "INFO"),
+                "propagate": False,
+            },
+        },
+    }
+    # endregion
+
+    # region REST Framework --------------------------------------------------------------------------------------
     REST_FRAMEWORK = {
         "DEFAULT_AUTHENTICATION_CLASSES": [
             "rest_framework_simplejwt.authentication.JWTAuthentication",
@@ -148,55 +210,24 @@ class Dev(Configuration):
         ],
         "DATETIME_FORMAT": "%Y-%m-%d %H:%M:%S",
     }
+    # endregion
 
-    # CORS
+    # region CORS --------------------------------------------------------------------------------------
     CORS_ALLOWED_ORIGINS = values.ListValue()
 
     CORS_ALLOW_CREDENTIALS = True
+    # endregion
 
-    # Celery Configuration
+    # region Celery --------------------------------------------------------------------------------------
     CELERY_BROKER_URL = values.Value()
+    # endregion
 
-    # Docker Configuration
-    DOCKER_HOST = values.Value()
+    # region Docker --------------------------------------------------------------------------------------
+    DOCKER_HOST = values.Value(environ_prefix=None)
+    SERVERS_DATA_PATH = values.Value()
+    # endregion
 
-    # Redis Cache
-    CACHES = values.CacheURLValue()
-
-    # Logging
-    LOGGING = {
-        "version": 1,
-        "disable_existing_loggers": False,
-        "formatters": {
-            "verbose": {
-                "format": "[%(levelname)s] - %(asctime)s - %(filename)s:%(lineno)d - %(message)s",
-                "datefmt": "%Y-%m-%d %H:%M:%S",
-            },
-        },
-        "handlers": {
-            "console": {
-                "class": "logging.StreamHandler",
-                "formatter": "verbose",
-            },
-            "file": {
-                "class": "logging.FileHandler",
-                "filename": BASE_DIR / "logs" / "django.log",
-                "formatter": "verbose",
-            },
-        },
-        "root": {
-            "handlers": ["console", "file"],
-            "level": "INFO",
-        },
-        "loggers": {
-            "django": {
-                "handlers": ["console", "file"],
-                "level": os.getenv("DJANGO_LOG_LEVEL", "INFO"),
-                "propagate": False,
-            },
-        },
-    }
-
+    # region Simple JWT --------------------------------------------------------------------------------------
     SIMPLE_JWT = {
         "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),
         "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
@@ -216,7 +247,7 @@ class Dev(Configuration):
         "TOKEN_TYPE_CLAIM": "token_type",
         "JTI_CLAIM": "jti",
     }
-    SERVERS_DATA_PATH = values.Value()
+    # endregion
 
 
 class Test(Dev):

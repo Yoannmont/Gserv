@@ -69,8 +69,6 @@ class LoginSerializer(serializers.Serializer):
 
 
 class TokenObtainSerializer(serializers.Serializer):
-    """Serializer pour obtenir les tokens JWT"""
-
     username = serializers.CharField()
     password = serializers.CharField(write_only=True)
 
@@ -93,8 +91,6 @@ class TokenObtainSerializer(serializers.Serializer):
 
 
 class TokenRefreshSerializer(serializers.Serializer):
-    """Serializer pour rafraîchir le token d'accès"""
-
     refresh = serializers.CharField()
 
     def validate(self, data):

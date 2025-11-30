@@ -9,8 +9,6 @@ logger = logging.getLogger(__name__)
 class DockerServiceError(Exception):
     """Custom exception for Docker errors"""
 
-    pass
-
 
 class DockerService:
     """Docker container management service"""
@@ -21,10 +19,10 @@ class DockerService:
             self.client = docker.from_env()
             # Test connection
             self.client.ping()
-            logger.info("Connexion au daemon Docker réussie")
+            logger.info("[docker_service] Connection to Docker daemon successful")
         except docker.errors.DockerException as e:
-            logger.error(f"Impossible de se connecter au daemon Docker: {e}")
-            raise DockerServiceError(f"Connexion Docker échouée: {e}")
+            logger.critical("[docker_service] Failed to connect to Docker daemon: %r", e)
+            raise DockerServiceError(f"[docker_service] Failed to connect to Docker daemon: {e}")
 
     def create_container(
         self,
@@ -56,7 +54,7 @@ class DockerService:
             container_id: ID of the created container
         """
         try:
-            logger.info(f"Creating container {name} with image {image}")
+            logger.info(f"[docker_service] Creating container {name} with image {image}")
 
             # Pull image if necessary
             self._pull_image(image)
@@ -80,15 +78,15 @@ class DockerService:
                 tty=True,
             )
 
-            logger.info(f"Conteneur {name} créé avec ID: {container.id}")
+            logger.info(f"[docker_service] Container {name} created with ID: {container.id}")
             return container.id
 
         except docker.errors.APIError as e:
-            logger.error(f"Erreur API Docker lors de la création: {e}")
-            raise DockerServiceError(f"Erreur lors de la création du conteneur: {e}")
+            logger.error("[docker_service] Docker API error during creation: %r", e)
+            raise DockerServiceError(f"[docker_service] Error during container creation: {e}")
         except Exception as e:
-            logger.error(f"Erreur inattendue lors de la création: {e}")
-            raise DockerServiceError(f"Erreur inattendue: {e}")
+            logger.error("[docker_service] Unexpected error during creation: %r", e)
+            raise DockerServiceError(f"[docker_service] Unexpected error during container creation: {e}")
 
     def start_container(self, container_id: str) -> bool:
         """
@@ -103,14 +101,14 @@ class DockerService:
         try:
             container = self.client.containers.get(container_id)
             container.start()
-            logger.info(f"Conteneur {container_id} démarré")
+            logger.info(f"[docker_service] Container {container_id} started")
             return True
         except docker.errors.NotFound:
-            logger.error(f"Conteneur {container_id} introuvable")
+            logger.error(f"[docker_service] Container {container_id} not found")
             raise DockerServiceError(f"Conteneur {container_id} introuvable")
         except docker.errors.APIError as e:
-            logger.error(f"Erreur lors du démarrage: {e}")
-            raise DockerServiceError(f"Erreur lors du démarrage: {e}")
+            logger.error("[docker_service] Error during container start: %r", e)
+            raise DockerServiceError(f"[docker_service] Error during container start: {e}")
 
     def stop_container(self, container_id: str, timeout: int = 30) -> bool:
         """
@@ -126,14 +124,14 @@ class DockerService:
         try:
             container = self.client.containers.get(container_id)
             container.stop(timeout=timeout)
-            logger.info(f"Conteneur {container_id} arrêté")
+            logger.info(f"[docker_service] Container {container_id} stopped")
             return True
         except docker.errors.NotFound:
-            logger.error(f"Conteneur {container_id} introuvable")
-            raise DockerServiceError(f"Conteneur {container_id} introuvable")
+            logger.error(f"[docker_service] Container {container_id} not found")
+            raise DockerServiceError(f"[docker_service] Container {container_id} not found")
         except docker.errors.APIError as e:
-            logger.error(f"Erreur lors de l'arrêt: {e}")
-            raise DockerServiceError(f"Erreur lors de l'arrêt: {e}")
+            logger.error("[docker_service] Error during container stop: %r", e)
+            raise DockerServiceError(f"[docker_service] Error during container stop: {e}")
 
     def restart_container(self, container_id: str, timeout: int = 30) -> bool:
         """
@@ -149,14 +147,14 @@ class DockerService:
         try:
             container = self.client.containers.get(container_id)
             container.restart(timeout=timeout)
-            logger.info(f"Conteneur {container_id} redémarré")
+            logger.info(f"[docker_service] Container {container_id} restarted")
             return True
         except docker.errors.NotFound:
-            logger.error(f"Conteneur {container_id} introuvable")
-            raise DockerServiceError(f"Conteneur {container_id} introuvable")
+            logger.error(f"[docker_service] Container {container_id} not found")
+            raise DockerServiceError(f"[docker_service] Container {container_id} not found")
         except docker.errors.APIError as e:
-            logger.error(f"Erreur lors du redémarrage: {e}")
-            raise DockerServiceError(f"Erreur lors du redémarrage: {e}")
+            logger.error("[docker_service] Error during container restart: %r", e)
+            raise DockerServiceError(f"[docker_service] Error during container restart: {e}")
 
     def remove_container(self, container_id: str, force: bool = False, volumes: bool = False) -> bool:
         """
@@ -173,14 +171,14 @@ class DockerService:
         try:
             container = self.client.containers.get(container_id)
             container.remove(force=force, v=volumes)
-            logger.info(f"Conteneur {container_id} supprimé")
+            logger.info(f"[docker_service] Container {container_id} removed")
             return True
         except docker.errors.NotFound:
-            logger.warning(f"Conteneur {container_id} déjà supprimé")
+            logger.warning(f"[docker_service] Container {container_id} already removed")
             return True
         except docker.errors.APIError as e:
-            logger.error(f"Erreur lors de la suppression: {e}")
-            raise DockerServiceError(f"Erreur lors de la suppression: {e}")
+            logger.error("[docker_service] Error during container removal: %r", e)
+            raise DockerServiceError(f"[docker_service] Error during container removal: {e}")
 
     def get_container_status(self, container_id: str) -> str:
         """
@@ -198,8 +196,8 @@ class DockerService:
         except docker.errors.NotFound:
             return "not_found"
         except docker.errors.APIError as e:
-            logger.error(f"Erreur lors de la récupération du statut: {e}")
-            raise DockerServiceError(f"Erreur lors de la récupération du statut: {e}")
+            logger.error("[docker_service] Error during container status retrieval: %r", e)
+            raise DockerServiceError(f"[docker_service] Error during container status retrieval: {e}")
 
     def get_container_stats(self, container_id: str) -> dict[str, Any]:
         """
@@ -216,13 +214,11 @@ class DockerService:
             stats = container.stats(stream=False)
 
             # Calculate CPU percentage
-            cpu_delta = (
-                stats["cpu_stats"]["cpu_usage"]["total_usage"] - stats["precpu_stats"]["cpu_usage"]["total_usage"]
-            )
+            cpu_delta = stats["cpu_stats"]["cpu_usage"]["total_usage"] - stats["precpu_stats"]["cpu_usage"]["total_usage"]
             system_delta = stats["cpu_stats"]["system_cpu_usage"] - stats["precpu_stats"]["system_cpu_usage"]
             cpu_percent = 0.0
             if system_delta > 0:
-                cpu_percent = (cpu_delta / system_delta) * len(stats["cpu_stats"]["cpu_usage"]["percpu_usage"]) * 100.0
+                cpu_percent = (cpu_delta / system_delta) * stats["cpu_stats"]["online_cpus"] * 100.0
 
             # Memory
             memory_usage = stats["memory_stats"]["usage"]
@@ -240,8 +236,8 @@ class DockerService:
         except docker.errors.NotFound:
             raise DockerServiceError(f"Conteneur {container_id} introuvable")
         except docker.errors.APIError as e:
-            logger.error(f"Erreur lors de la récupération des stats: {e}")
-            raise DockerServiceError(f"Erreur lors de la récupération des stats: {e}")
+            logger.error("[docker_service] Error during container stats retrieval: %r", e)
+            raise DockerServiceError(f"[docker_service] Error during container stats retrieval: {e}")
 
     def get_container_logs(self, container_id: str, tail: int = 100, timestamps: bool = True) -> str:
         """
@@ -260,10 +256,38 @@ class DockerService:
             logs = container.logs(tail=tail, timestamps=timestamps)
             return logs.decode("utf-8")
         except docker.errors.NotFound:
-            raise DockerServiceError(f"Conteneur {container_id} introuvable")
+            raise DockerServiceError(f"[docker_service] Container {container_id} not found")
         except docker.errors.APIError as e:
-            logger.error(f"Erreur lors de la récupération des logs: {e}")
-            raise DockerServiceError(f"Erreur lors de la récupération des logs: {e}")
+            logger.error("[docker_service] Error during container logs retrieval: %r", e)
+            raise DockerServiceError(f"[docker_service] Error during container logs retrieval: {e}")
+
+    def stream_container_logs(self, container_id: str, tail: int = 100, timestamps: bool = True):
+        """
+        Stream container logs in real-time
+
+        Args:
+            container_id: Container ID
+            tail: Number of initial lines to return
+            timestamps: Include timestamps
+
+        Yields:
+            Log lines as strings
+        """
+        try:
+            container = self.client.containers.get(container_id)
+            log_stream = container.logs(
+                stream=True,
+                follow=True,
+                tail=tail,
+                timestamps=timestamps,
+            )
+            for log_line in log_stream:
+                yield log_line.decode("utf-8", errors="replace")
+        except docker.errors.NotFound:
+            raise DockerServiceError(f"[docker_service] Container {container_id} not found")
+        except docker.errors.APIError as e:
+            logger.error("[docker_service] Error during container logs streaming: %r", e)
+            raise DockerServiceError(f"[docker_service] Error during container logs streaming: {e}")
 
     def execute_command(self, container_id: str, command: str) -> str:
         """
@@ -281,10 +305,10 @@ class DockerService:
             result = container.exec_run(command)
             return result.output.decode("utf-8")
         except docker.errors.NotFound:
-            raise DockerServiceError(f"Conteneur {container_id} introuvable")
+            raise DockerServiceError(f"[docker_service] Container {container_id} not found")
         except docker.errors.APIError as e:
-            logger.error(f"Erreur lors de l'exécution de la commande: {e}")
-            raise DockerServiceError(f"Erreur lors de l'exécution: {e}")
+            logger.error("[docker_service] Error during command execution: %r", e)
+            raise DockerServiceError(f"[docker_service] Error during command execution: {e}")
 
     def update_container(self, container_id: str, image: str, preserve_data: bool = True) -> str:
         """
@@ -333,14 +357,14 @@ class DockerService:
                 cpu_limit=config["HostConfig"]["NanoCpus"] / 1e9,
             )
 
-            logger.info(f"Conteneur mis à jour: {container_id} -> {new_container_id}")
+            logger.info(f"[docker_service] Container {container_id} updated to {new_container_id}")
             return new_container_id
 
         except docker.errors.NotFound:
-            raise DockerServiceError(f"Conteneur {container_id} introuvable")
+            raise DockerServiceError(f"[docker_service] Container {container_id} not found")
         except docker.errors.APIError as e:
-            logger.error(f"Erreur lors de la mise à jour: {e}")
-            raise DockerServiceError(f"Erreur lors de la mise à jour: {e}")
+            logger.error("[docker_service] Error during container update: %r", e)
+            raise DockerServiceError(f"[docker_service] Error during container update: {e}")
 
     def _pull_image(self, image: str) -> None:
         """
@@ -350,12 +374,12 @@ class DockerService:
             image: Image name
         """
         try:
-            logger.info(f"Vérification de l'image {image}")
+            logger.info(f"[docker_service] Checking image {image}")
             self.client.images.pull(image)
-            logger.info(f"Image {image} prête")
+            logger.info(f"[docker_service] Image {image} ready")
         except docker.errors.APIError as e:
-            logger.error(f"Erreur lors du pull de l'image {image}: {e}")
-            raise DockerServiceError(f"Erreur lors du pull de l'image: {e}")
+            logger.error("[docker_service] Error during image pull: %r", e)
+            raise DockerServiceError(f"[docker_service] Error during image pull: {e}")
 
     def list_containers(self, all: bool = False) -> list[dict[str, Any]]:
         """
@@ -379,8 +403,8 @@ class DockerService:
                 for c in containers
             ]
         except docker.errors.APIError as e:
-            logger.error(f"Erreur lors du listing: {e}")
-            raise DockerServiceError(f"Erreur lors du listing: {e}")
+            logger.error("[docker_service] Error during container listing: %r", e)
+            raise DockerServiceError(f"[docker_service] Error during container listing: {e}")
 
     def cleanup_unused_containers(self) -> int:
         """
@@ -392,11 +416,11 @@ class DockerService:
         try:
             removed = self.client.containers.prune()
             count = len(removed["ContainersDeleted"] or [])
-            logger.info(f"{count} conteneurs inutilisés supprimés")
+            logger.info(f"[docker_service] {count} unused containers removed")
             return count
         except docker.errors.APIError as e:
-            logger.error(f"Erreur lors du nettoyage: {e}")
-            raise DockerServiceError(f"Erreur lors du nettoyage: {e}")
+            logger.error("[docker_service] Error during container cleanup: %r", e)
+            raise DockerServiceError(f"[docker_service] Error during container cleanup: {e}")
 
 
 # Singleton instance

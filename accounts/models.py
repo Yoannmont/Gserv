@@ -3,7 +3,7 @@ from django.db import models
 
 
 class User(AbstractUser):
-    """Utilisateur étendu avec des informations supplémentaires"""
+    """Extended user model with additional fields"""
 
     ROLE_CHOICES = [
         ("user", "Utilisateur"),
@@ -28,7 +28,7 @@ class User(AbstractUser):
 
 
 class UserProfile(models.Model):
-    """Profil utilisateur avec préférences"""
+    """User profile with preferences"""
 
     user = models.OneToOneField(
         User,

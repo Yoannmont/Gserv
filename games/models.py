@@ -3,7 +3,7 @@ from django.db import models
 
 
 class Game(models.Model):
-    """Représente un type de jeu (Minecraft, Palworld, etc.)"""
+    """Represents a game type (Minecraft, Palworld, etc.)"""
 
     name = models.CharField(max_length=100, unique=True, verbose_name="Nom du jeu")
     slug = models.SlugField(unique=True, verbose_name="Slug")
@@ -35,19 +35,21 @@ class Game(models.Model):
         ports = [
             {
                 "port": self.default_port,
-                "protocol": "both",  # tcp et udp
+                "protocol": "both",  # tcp and udp
                 "description": "Port principal",
                 "is_main": True,
             }
         ]
 
         for additional_port in self.additional_ports:
-            ports.append({
-                "port": additional_port.get("port"),
-                "protocol": additional_port.get("protocol", "tcp"),
-                "description": additional_port.get("description", ""),
-                "is_main": False,
-            })
+            ports.append(
+                {
+                    "port": additional_port.get("port"),
+                    "protocol": additional_port.get("protocol", "tcp"),
+                    "description": additional_port.get("description", ""),
+                    "is_main": False,
+                }
+            )
 
         return ports
 
@@ -125,12 +127,10 @@ class GameConfiguration(models.Model):
 
 
 class PermissionRole(models.Model):
-    """Rôles de permissions spécifiques à chaque jeu"""
+    """Specific permission roles for each game"""
 
     game = models.ForeignKey(Game, on_delete=models.CASCADE, related_name="permission_roles", verbose_name="Jeu")
-    name = models.CharField(
-        max_length=50, verbose_name="Nom du rôle", help_text="Ex: Player, Moderator, Admin, Operator"
-    )
+    name = models.CharField(max_length=50, verbose_name="Nom du rôle", help_text="Ex: Player, Moderator, Admin, Operator")
     slug = models.SlugField(verbose_name="Slug")
     level = models.IntegerField(
         default=0,

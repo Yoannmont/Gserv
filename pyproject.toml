@@ -4,10 +4,10 @@ exclude = [
     ".git",
     "__init__.py"]
 target-version = "py312"
-line-length = 120
+line-length = 130
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "SIM"]
+select = ["E", "F", "I", "UP"]
 fixable = ["ALL"]
 
 [tool.pytest.ini_options]
