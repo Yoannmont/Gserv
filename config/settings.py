@@ -54,7 +54,6 @@ class Dev(Configuration):
         "django_filters",
         "corsheaders",
         "drf_yasg",
-        "monitoring",
         "docker_manager",
     ]
 
