@@ -63,7 +63,28 @@ class TestServerInstanceViewSet:
         response = authenticated_client.post(url, data, format="json")
 
         assert response.status_code == status.HTTP_201_CREATED
-        assert response.data["name"] == "My Server"
+        assert response.data == {
+            "id": 1,
+            "name": "My Server",
+            "game": 1,
+            "game_version": 1,
+            "description": "Test server",
+            "port": 25565,
+            "additional_ports": {},
+            "max_players": 20,
+            "auto_start": False,
+            "auto_update": True,
+            "backup_enabled": True,
+            "is_public": True,
+            "configuration": {
+                "config_data": {},
+                "environment_variables": {},
+                "docker_volumes": [],
+                "memory_limit": "2g",
+                "cpu_limit": 2.0,
+                "custom_startup_command": "",
+            },
+        }
 
     def test_retrieve_own_server(self, authenticated_client, user):
         server = ServerInstanceFactory(owner=user)
@@ -191,7 +212,6 @@ class TestServerInstanceViewSet:
         assert server.configuration.custom_startup_command == "echo 'Hello, world!'"
 
     def test_partial_update_server(self, authenticated_client, user):
-        """Test mise à jour partielle d'un serveur"""
         server = ServerInstanceFactory(owner=user, name="Old Name")
 
         url = reverse("server-detail", kwargs={"pk": server.id})
@@ -207,17 +227,17 @@ class TestServerInstanceViewSet:
 @pytest.mark.django_db
 class TestServerActions:
     def test_start_server(self, authenticated_client, user):
-        server = ServerInstanceFactory(owner=user, status="stopped")
+        server = ServerInstanceFactory(owner=user, status=ServerInstance.CREATED)
 
         url = reverse("server-start", kwargs={"pk": server.id})
         response = authenticated_client.post(url)
 
         assert response.status_code == status.HTTP_200_OK
         server.refresh_from_db()
-        assert server.status == "starting"
+        assert server.status == ServerInstance.STARTING
 
     def test_start_already_running_server(self, authenticated_client, user):
-        server = ServerInstanceFactory(owner=user, status="running")
+        server = ServerInstanceFactory(owner=user, status=ServerInstance.STARTED)
 
         url = reverse("server-start", kwargs={"pk": server.id})
         response = authenticated_client.post(url)
@@ -225,18 +245,17 @@ class TestServerActions:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
     def test_stop_server(self, authenticated_client, user):
-        server = ServerInstanceFactory(owner=user, status="running")
+        server = ServerInstanceFactory(owner=user, status=ServerInstance.STARTED)
 
         url = reverse("server-stop", kwargs={"pk": server.id})
         response = authenticated_client.post(url)
 
         assert response.status_code == status.HTTP_200_OK
         server.refresh_from_db()
-        assert server.status == "stopping"
+        assert server.status == ServerInstance.STOPPING
 
     def test_stop_already_stopped_server(self, authenticated_client, user):
-        """Test arrêt d'un serveur déjà arrêté"""
-        server = ServerInstanceFactory(owner=user, status="stopped")
+        server = ServerInstanceFactory(owner=user, status=ServerInstance.STOPPED)
 
         url = reverse("server-stop", kwargs={"pk": server.id})
         response = authenticated_client.post(url)
@@ -245,7 +264,7 @@ class TestServerActions:
         assert "error" in response.data
 
     def test_restart_server(self, authenticated_client, user):
-        server = ServerInstanceFactory(owner=user, status="running")
+        server = ServerInstanceFactory(owner=user, status=ServerInstance.STARTED)
 
         url = reverse("server-restart", kwargs={"pk": server.id})
         response = authenticated_client.post(url)
@@ -253,20 +272,20 @@ class TestServerActions:
         assert response.status_code == status.HTTP_200_OK
 
     def test_update_server_stopped(self, authenticated_client, user):
-        server = ServerInstanceFactory(owner=user, status="stopped")
+        server = ServerInstanceFactory(owner=user, status=ServerInstance.STOPPED)
 
         url = reverse("server-update-server", kwargs={"pk": server.id})
         response = authenticated_client.post(url)
 
         assert response.status_code == status.HTTP_200_OK
         server.refresh_from_db()
-        assert server.status == "updating"
+        assert server.status == ServerInstance.UPDATING
 
     def test_update_running_server_without_force(self, authenticated_client, user):
-        server = ServerInstanceFactory(owner=user, status="running")
+        server = ServerInstanceFactory(owner=user, status=ServerInstance.STARTED)
 
         _server = ServerInstance.objects.first()
-        assert _server.status == "running"
+        assert _server.status == ServerInstance.STARTED
         assert _server.id == server.id
 
         url = reverse("server-update-server", kwargs={"pk": server.id})
@@ -275,8 +294,7 @@ class TestServerActions:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
     def test_update_running_server_with_force(self, authenticated_client, user):
-        """Test mise à jour d'un serveur en cours d'exécution avec force"""
-        server = ServerInstanceFactory(owner=user, status="running")
+        server = ServerInstanceFactory(owner=user, status=ServerInstance.STARTED)
 
         url = reverse("server-update-server", kwargs={"pk": server.id})
         data = {"force": True}
@@ -284,10 +302,9 @@ class TestServerActions:
 
         assert response.status_code == status.HTTP_200_OK
         server.refresh_from_db()
-        assert server.status == "updating"
+        assert server.status == ServerInstance.UPDATING
 
     def test_get_server_logs(self, authenticated_client, user):
-        """Test récupération des logs d'un serveur"""
         server = ServerInstanceFactory(owner=user, container_id="test-container-123")
 
         url = reverse("server-logs", kwargs={"pk": server.id})
@@ -376,7 +393,6 @@ class TestPermissions:
 @pytest.mark.django_db
 class TestServerPlayerViewSet:
     def test_list_server_players_viewset(self, authenticated_client, user):
-        """Test liste des joueurs via viewset"""
         server = ServerInstanceFactory(owner=user)
         ServerPlayerFactory.create_batch(3, server=server)
 
@@ -387,7 +403,6 @@ class TestServerPlayerViewSet:
         assert len(response.data["results"]) >= 3
 
     def test_retrieve_server_player(self, authenticated_client, user):
-        """Test récupération d'un joueur"""
         server = ServerInstanceFactory(owner=user)
         player = ServerPlayerFactory(server=server, minecraft_username="TestPlayer")
 
@@ -398,7 +413,6 @@ class TestServerPlayerViewSet:
         assert response.data["minecraft_username"] == "TestPlayer"
 
     def test_update_server_player(self, authenticated_client, user):
-        """Test mise à jour d'un joueur"""
         server = ServerInstanceFactory(owner=user)
         player = ServerPlayerFactory(server=server, permission_level="player")
 
@@ -412,7 +426,6 @@ class TestServerPlayerViewSet:
         assert player.permission_level == "moderator"
 
     def test_partial_update_server_player(self, authenticated_client, user):
-        """Test mise à jour partielle d'un joueur"""
         server = ServerInstanceFactory(owner=user)
         player = ServerPlayerFactory(server=server, is_banned=False)
 
@@ -426,7 +439,6 @@ class TestServerPlayerViewSet:
         assert player.is_banned is True
 
     def test_delete_server_player(self, authenticated_client, user):
-        """Test suppression d'un joueur"""
         server = ServerInstanceFactory(owner=user)
         player = ServerPlayerFactory(server=server)
 

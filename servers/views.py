@@ -93,7 +93,7 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
                     message="Création du serveur demandée",
                     triggered_by=request.user,
                 )
-                return Response({"message": "Création du serveur en cours"}, status=status.HTTP_201_CREATED)
+                return response
             raise Exception("Server creation failed")
         except DRFValidationError as e:
             logger.warning(f"[servers_instance_create] Validation error name={name} errors={e.detail}")
@@ -505,7 +505,7 @@ class ServerPlayerViewSet(viewsets.ModelViewSet):
         try:
             response = super().create(request, *args, **kwargs)
             if response.status_code == 201:
-                player_id = response.data.get("id", "unknown")
+                player_id = response.data.get("id")
                 logger.info(f"[servers_player_create] Server player created successfully id={player_id} username={username}")
             return response
         except DRFValidationError as e:

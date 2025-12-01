@@ -312,7 +312,6 @@ class ServerManager:
         directories = [
             server_path,
             os.path.join(server_path, "data"),
-            os.path.join(server_path, "mods"),
             os.path.join(server_path, "config"),
             os.path.join(server_path, "backups"),
         ]

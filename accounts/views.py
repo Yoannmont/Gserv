@@ -304,15 +304,14 @@ class TokenLogoutView(APIView):
         user_id = request.user.id
         try:
             refresh_token = request.data.get("refresh")
-            if not refresh_token:
-                raise DRFValidationError("Refresh token is required")
-            token = RefreshToken(refresh_token)
-            token.blacklist()
+            if refresh_token:
+                token = RefreshToken(refresh_token)
+                token.blacklist()
 
             logout(request)
             logger.info(f"[accounts_token_logout] User logged out successfully id={user_id}")
             return Response({"message": "Déconnexion réussie"}, status=status.HTTP_200_OK)
-        except (TokenError, DRFValidationError):
+        except TokenError:
             logger.warning(f"[accounts_token_logout] Invalid or missing refresh token id={user_id}")
             return Response({"error": "Token invalide ou manquant"}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
