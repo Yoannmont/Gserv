@@ -167,7 +167,7 @@ class TestUserLogout:
         user = UserFactory()
         refresh = RefreshToken.for_user(user)
 
-        url = reverse("user-logout")
+        url = reverse("token_logout")
         data = {"refresh": str(refresh)}
 
         response = authenticated_client.post(url, data, format="json")
@@ -177,7 +177,7 @@ class TestUserLogout:
 
     def test_logout_invalid_token(self, authenticated_client, user):
         """Test déconnexion avec token invalide"""
-        url = reverse("user-logout")
+        url = reverse("token_logout")
         data = {"refresh": "invalid_token"}
 
         response = authenticated_client.post(url, data, format="json")
@@ -187,7 +187,7 @@ class TestUserLogout:
 
     def test_logout_without_token(self, authenticated_client):
         """Test déconnexion sans token"""
-        url = reverse("user-logout")
+        url = reverse("token_logout")
         data = {}
 
         response = authenticated_client.post(url, data, format="json")
