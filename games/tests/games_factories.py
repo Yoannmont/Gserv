@@ -2,7 +2,7 @@ import factory
 from django.utils.text import slugify
 from factory.django import DjangoModelFactory
 
-from games.models import Game, GameConfiguration, GameMod, GameVersion
+from games.models import Game, GameConfiguration, GameVersion
 
 
 class GameFactory(DjangoModelFactory):
@@ -28,31 +28,6 @@ class GameVersionFactory(DjangoModelFactory):
     is_stable = True
     is_recommended = False
     changelog = factory.Faker("text")
-
-
-class GameModFactory(DjangoModelFactory):
-    class Meta:
-        model = GameMod
-
-    game = factory.SubFactory(GameFactory)
-    name = factory.Sequence(lambda n: f"Mod {n}")
-    slug = factory.LazyAttribute(lambda obj: slugify(obj.name))
-    description = factory.Faker("text", max_nb_chars=200)
-    mod_type = "mod"
-    version = factory.Sequence(lambda n: f"1.{n}")
-    download_url = factory.Faker("url")
-    file_name = factory.LazyAttribute(lambda obj: f"{obj.slug}.jar")
-    author = factory.Faker("name")
-    website = factory.Faker("url")
-    is_active = True
-
-    @factory.post_generation
-    def compatible_game_versions(self, create, extracted):
-        if not create:
-            return
-        if extracted:
-            for version in extracted:
-                self.compatible_game_versions.add(version)
 
 
 class GameConfigurationFactory(DjangoModelFactory):

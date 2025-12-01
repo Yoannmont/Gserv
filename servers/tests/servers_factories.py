@@ -2,11 +2,10 @@ import factory
 from factory.django import DjangoModelFactory
 
 from accounts.tests.accounts_factories import UserFactory
-from games.tests.games_factories import GameFactory, GameModFactory, GameVersionFactory
+from games.tests.games_factories import GameFactory, GameVersionFactory
 from servers.models import (
     ServerConfiguration,
     ServerInstance,
-    ServerMod,
     ServerPlayer,
     ServerStatus,
 )
@@ -42,14 +41,6 @@ class ServerConfigurationFactory(DjangoModelFactory):
     cpu_limit = 2.0
 
 
-class ServerModFactory(DjangoModelFactory):
-    class Meta:
-        model = ServerMod
-
-    server = factory.SubFactory(ServerInstanceFactory)
-    mod = factory.SubFactory(GameModFactory)
-    is_enabled = True
-    custom_config = factory.LazyFunction(dict)
 
 
 class ServerStatusFactory(DjangoModelFactory):

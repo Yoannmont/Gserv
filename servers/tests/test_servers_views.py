@@ -3,11 +3,10 @@ from django.urls import reverse
 from rest_framework import status
 
 from accounts.tests.accounts_factories import UserFactory
-from games.tests.games_factories import GameFactory, GameModFactory, GameVersionFactory
+from games.tests.games_factories import GameFactory, GameVersionFactory
 from servers.models import ServerInstance
 from servers.tests.servers_factories import (
     ServerInstanceFactory,
-    ServerModFactory,
     ServerPlayerFactory,
 )
 
@@ -311,77 +310,6 @@ class TestServerActions:
         assert len(response.data) == 5
 
 
-@pytest.mark.django_db
-class TestServerModsManagement:
-    def test_list_server_mods(self, authenticated_client, user):
-        server = ServerInstanceFactory(owner=user)
-        ServerModFactory.create_batch(3, server=server)
-
-        url = reverse("server-mods", kwargs={"pk": server.id})
-        response = authenticated_client.get(url)
-
-        assert response.status_code == status.HTTP_200_OK
-        assert len(response.data) == 3
-
-    def test_install_mod(self, authenticated_client, user):
-        game = GameFactory()
-        server = ServerInstanceFactory(owner=user, game=game)
-        mod = GameModFactory(game=game)
-
-        url = reverse("server-mods", kwargs={"pk": int(server.id)})
-        data = {"mod_id": mod.id, "is_enabled": True}
-
-        response = authenticated_client.post(url, data=data, format="json")
-
-        assert response.status_code == status.HTTP_201_CREATED
-
-        from servers.models import ServerMod
-
-        assert ServerMod.objects.filter(server=server, mod=mod).exists()
-
-    def test_get_server_mod_detail(self, authenticated_client, user):
-        """Test récupération d'un mod spécifique d'un serveur"""
-        game = GameFactory()
-        server = ServerInstanceFactory(owner=user, game=game)
-        mod = GameModFactory(game=game)
-        server_mod = ServerModFactory(server=server, mod=mod)
-
-        url = reverse("server-mod-detail", kwargs={"pk": server.id, "mod_id": str(server_mod.id)})
-        response = authenticated_client.get(url)
-
-        assert response.status_code == status.HTTP_200_OK
-        assert response.data["id"] == server_mod.id
-
-    def test_delete_server_mod(self, authenticated_client, user):
-        """Test suppression d'un mod d'un serveur"""
-        game = GameFactory()
-        server = ServerInstanceFactory(owner=user, game=game)
-        mod = GameModFactory(game=game)
-        server_mod = ServerModFactory(server=server, mod=mod)
-
-        url = reverse("server-mod-detail", kwargs={"pk": server.id, "mod_id": str(server_mod.id)})
-        response = authenticated_client.delete(url)
-
-        assert response.status_code == status.HTTP_204_NO_CONTENT
-        from servers.models import ServerMod
-
-        assert not ServerMod.objects.filter(id=server_mod.id).exists()
-
-    def test_update_server_mod(self, authenticated_client, user):
-        game = GameFactory()
-        server = ServerInstanceFactory(owner=user, game=game)
-        mod = GameModFactory(game=game)
-        server_mod = ServerModFactory(server=server, mod=mod, is_enabled=True)
-
-        url = reverse("servermod-detail", kwargs={"pk": server_mod.id})
-        data = {"mod_id": mod.id, "is_enabled": False}
-
-        response = authenticated_client.put(url, data, format="json")
-
-        assert response.status_code == status.HTTP_200_OK
-        server_mod.refresh_from_db()
-        assert server_mod.is_enabled is False
-
 
 @pytest.mark.django_db
 class TestServerPlayersManagement:
@@ -444,81 +372,6 @@ class TestPermissions:
         response = api_client.post(url, data, format="json")
 
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
-
-
-@pytest.mark.django_db
-class TestServerModViewSet:
-    def test_list_server_mods(self, authenticated_client, user):
-        """Test liste des mods de serveur"""
-        game = GameFactory()
-        server = ServerInstanceFactory(owner=user, game=game)
-        ServerModFactory.create_batch(3, server=server)
-
-        url = reverse("servermod-list")
-        response = authenticated_client.get(url)
-
-        assert response.status_code == status.HTTP_200_OK
-        assert len(response.data["results"]) == 3
-
-    def test_retrieve_server_mod(self, authenticated_client, user):
-        """Test récupération d'un mod de serveur"""
-        game = GameFactory()
-        server = ServerInstanceFactory(owner=user, game=game)
-        mod = GameModFactory(game=game)
-        server_mod = ServerModFactory(server=server, mod=mod)
-
-        url = reverse("servermod-detail", kwargs={"pk": server_mod.id})
-        response = authenticated_client.get(url)
-
-        assert response.status_code == status.HTTP_200_OK
-        assert response.data["id"] == server_mod.id
-
-    def test_update_server_mod(self, authenticated_client, user):
-        """Test mise à jour d'un mod de serveur"""
-        game = GameFactory()
-        server = ServerInstanceFactory(owner=user, game=game)
-        mod = GameModFactory(game=game)
-        server_mod = ServerModFactory(server=server, mod=mod, is_enabled=True)
-
-        url = reverse("servermod-detail", kwargs={"pk": server_mod.id})
-        data = {"mod_id": mod.id, "is_enabled": False, "custom_config": {"key": "value"}}
-
-        response = authenticated_client.put(url, data, format="json")
-
-        assert response.status_code == status.HTTP_200_OK
-        server_mod.refresh_from_db()
-        assert server_mod.is_enabled is False
-
-    def test_partial_update_server_mod(self, authenticated_client, user):
-        """Test mise à jour partielle d'un mod de serveur"""
-        game = GameFactory()
-        server = ServerInstanceFactory(owner=user, game=game)
-        mod = GameModFactory(game=game)
-        server_mod = ServerModFactory(server=server, mod=mod, is_enabled=True)
-
-        url = reverse("servermod-detail", kwargs={"pk": server_mod.id})
-        data = {"is_enabled": False}
-
-        response = authenticated_client.patch(url, data, format="json")
-
-        assert response.status_code == status.HTTP_200_OK
-        server_mod.refresh_from_db()
-        assert server_mod.is_enabled is False
-
-    def test_delete_server_mod(self, authenticated_client, user):
-        """Test suppression d'un mod de serveur"""
-        game = GameFactory()
-        server = ServerInstanceFactory(owner=user, game=game)
-        mod = GameModFactory(game=game)
-        server_mod = ServerModFactory(server=server, mod=mod)
-
-        url = reverse("servermod-detail", kwargs={"pk": server_mod.id})
-        response = authenticated_client.delete(url)
-
-        assert response.status_code == status.HTTP_204_NO_CONTENT
-        from servers.models import ServerMod
-
-        assert not ServerMod.objects.filter(id=server_mod.id).exists()
 
 
 @pytest.mark.django_db

@@ -31,7 +31,7 @@ class Game(models.Model):
         return self.name
 
     def get_all_ports(self):
-        """Retourne tous les ports (défaut + additionnels)"""
+        """Return all ports (default + additional)"""
         ports = [
             {
                 "port": self.default_port,
@@ -74,39 +74,6 @@ class GameVersion(models.Model):
         return f"{self.game.name} - {self.version}"
 
 
-class GameMod(models.Model):
-    MOD_TYPE_CHOICES = [
-        ("plugin", "Plugin"),
-        ("mod", "Mod"),
-        ("datapack", "Datapack"),
-    ]
-
-    game = models.ForeignKey(Game, on_delete=models.CASCADE, related_name="mods", verbose_name="Jeu")
-    name = models.CharField(max_length=100, verbose_name="Nom du mod")
-    slug = models.SlugField(verbose_name="Slug")
-    description = models.TextField(blank=True, verbose_name="Description")
-    mod_type = models.CharField(max_length=20, choices=MOD_TYPE_CHOICES, default="mod", verbose_name="Type de mod")
-    version = models.CharField(max_length=50, verbose_name="Version")
-    download_url = models.URLField(validators=[URLValidator()], verbose_name="URL de téléchargement")
-    file_name = models.CharField(max_length=255, verbose_name="Nom du fichier", help_text="Nom du fichier .jar ou .zip")
-    compatible_game_versions = models.ManyToManyField(
-        GameVersion, related_name="compatible_mods", verbose_name="Versions compatibles"
-    )
-    author = models.CharField(max_length=100, blank=True, verbose_name="Auteur")
-    website = models.URLField(blank=True, validators=[URLValidator()], verbose_name="Site web")
-    is_active = models.BooleanField(default=True, verbose_name="Actif")
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        verbose_name = "Mod"
-        verbose_name_plural = "Mods"
-        unique_together = ["game", "slug", "version"]
-        ordering = ["name"]
-
-    def __str__(self):
-        return f"{self.name} ({self.version})"
-
 
 class GameConfiguration(models.Model):
     game = models.ForeignKey(Game, on_delete=models.CASCADE, related_name="configurations", verbose_name="Jeu")
@@ -125,28 +92,3 @@ class GameConfiguration(models.Model):
     def __str__(self):
         return f"{self.game.name} - {self.name}"
 
-
-class PermissionRole(models.Model):
-    """Specific permission roles for each game"""
-
-    game = models.ForeignKey(Game, on_delete=models.CASCADE, related_name="permission_roles", verbose_name="Jeu")
-    name = models.CharField(max_length=50, verbose_name="Nom du rôle", help_text="Ex: Player, Moderator, Admin, Operator")
-    slug = models.SlugField(verbose_name="Slug")
-    level = models.IntegerField(
-        default=0,
-        verbose_name="Niveau de permission",
-        help_text="Plus le nombre est élevé, plus les permissions sont importantes",
-    )
-    description = models.TextField(blank=True, verbose_name="Description des permissions")
-    color = models.CharField(
-        max_length=7, default="#808080", verbose_name="Couleur (hex)", help_text="Pour l'affichage dans le front"
-    )
-
-    class Meta:
-        verbose_name = "Rôle de permission"
-        verbose_name_plural = "Rôles de permissions"
-        unique_together = ["game", "slug"]
-        ordering = ["game", "-level"]
-
-    def __str__(self):
-        return f"{self.game.name} - {self.name} (lvl {self.level})"

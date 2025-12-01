@@ -2,11 +2,10 @@ import pytest
 from django.urls import reverse
 from rest_framework import status
 
-from games.models import Game, GameMod, GameVersion
+from games.models import Game, GameVersion
 from games.tests.games_factories import (
     GameConfigurationFactory,
     GameFactory,
-    GameModFactory,
     GameVersionFactory,
 )
 
@@ -70,33 +69,6 @@ class TestGameViewSet:
 
         assert response.status_code == status.HTTP_200_OK
         assert len(response.data) == 3
-
-    def test_game_mods_action(self, api_client):
-        game = GameFactory(slug="minecraft")
-        GameModFactory.create_batch(5, game=game, is_active=True)
-        GameModFactory(game=game, is_active=False)
-
-        url = reverse("game-mods", kwargs={"slug": "minecraft"})
-        response = api_client.get(url)
-
-        assert response.status_code == status.HTTP_200_OK
-        assert len(response.data) == 5
-
-    def test_game_mods_filter_by_version(self, api_client):
-        """Test filtering mods by version"""
-        game = GameFactory(slug="minecraft")
-        v1 = GameVersionFactory(game=game, version="1.19")
-        v2 = GameVersionFactory(game=game, version="1.20")
-
-        GameModFactory(game=game, compatible_game_versions=[v1])
-        GameModFactory(game=game, compatible_game_versions=[v2])
-        GameModFactory(game=game, compatible_game_versions=[v1, v2])
-
-        url = reverse("game-mods", kwargs={"slug": "minecraft"})
-        response = api_client.get(url, {"version": "1.19"})
-
-        assert response.status_code == status.HTTP_200_OK
-        assert len(response.data) == 2  # mod1 and mod3
 
     def test_update_game(self, admin_client):
         game = GameFactory(slug="test-game", name="Test Game")
@@ -261,137 +233,6 @@ class TestGameVersionViewSet:
 
         assert response.status_code == status.HTTP_204_NO_CONTENT
 
-
-@pytest.mark.django_db
-class TestGameModViewSet:
-    def test_list_mods(self, api_client):
-        GameModFactory.create_batch(5, is_active=True)
-        GameModFactory(is_active=False)  # Should not appear
-
-        url = reverse("gamemod-list")
-        response = api_client.get(url)
-
-        assert response.status_code == status.HTTP_200_OK
-        assert len(response.data["results"]) == 5
-
-    def test_filter_mods_by_type(self, api_client):
-        GameModFactory.create_batch(2, mod_type="plugin")
-        GameModFactory.create_batch(3, mod_type="mod")
-
-        url = reverse("gamemod-list")
-        response = api_client.get(url, {"mod_type": "plugin"})
-
-        assert response.status_code == status.HTTP_200_OK
-        assert len(response.data["results"]) == 2
-
-    def test_search_mods(self, api_client):
-        GameModFactory(name="OptiFine", is_active=True)
-        GameModFactory(name="Sodium", is_active=True)
-        GameModFactory(name="Lithium", is_active=True)
-
-        url = reverse("gamemod-list")
-        response = api_client.get(url, {"search": "OptiFine"})
-
-        assert response.status_code == status.HTTP_200_OK
-        assert len(response.data["results"]) == 1
-        assert response.data["results"][0]["name"] == "OptiFine"
-
-    def test_create_mod_as_admin(self, admin_client):
-        game = GameFactory()
-        version = GameVersionFactory(game=game)
-
-        url = reverse("gamemod-list")
-        data = {
-            "game": game.id,
-            "name": "New Mod",
-            "slug": "new-mod",
-            "description": "A new mod",
-            "mod_type": "mod",
-            "version": "1.0",
-            "download_url": "https://example.com/mod.jar",
-            "file_name": "new-mod.jar",
-            "compatible_game_versions": [version.id],
-        }
-
-        response = admin_client.post(url, data, format="json")
-
-        assert response.status_code == status.HTTP_201_CREATED
-
-    def test_retrieve_mod(self, api_client):
-        """Test retrieving a mod"""
-        game = GameFactory()
-        mod = GameModFactory(game=game, name="Test Mod")
-
-        url = reverse("gamemod-detail", kwargs={"pk": mod.id})
-        response = api_client.get(url)
-
-        assert response.status_code == status.HTTP_200_OK
-        assert response.data["name"] == "Test Mod"
-
-    def test_update_mod(self, admin_client):
-        game = GameFactory()
-        mod = GameModFactory(game=game, name="Old Name")
-        version = GameVersionFactory(game=game, version="1.20")
-
-        assert GameVersion.objects.filter(game=game).exists()
-        url = reverse("gamemod-detail", kwargs={"pk": mod.id})
-        data = {
-            "game": game.id,
-            "name": "New Name",
-            "slug": "new-mod",
-            "description": "Updated description",
-            "mod_type": "mod",
-            "version": "1.0",
-            "download_url": "https://example.com/mod.jar",
-            "file_name": "new-mod.jar",
-            "compatible_game_versions": [version.id],
-            "author": "John Doe",
-            "website": "https://example.com",
-            "is_active": True,
-        }
-
-        response = admin_client.put(url, data, format="json")
-
-        assert response.status_code == status.HTTP_200_OK
-        mod.refresh_from_db()
-        assert mod.name == "New Name"
-        assert mod.description == "Updated description"
-        assert mod.mod_type == "mod"
-        assert mod.version == "1.0"
-        assert mod.download_url == "https://example.com/mod.jar"
-        assert mod.file_name == "new-mod.jar"
-        assert mod.compatible_game_versions.count() == 1
-        assert mod.compatible_game_versions.first().id == version.id
-        assert mod.author == "John Doe"
-        assert mod.website == "https://example.com"
-        assert mod.is_active is True
-        assert mod.game == game
-        assert mod.slug == "new-mod"
-
-    def test_partial_update_mod(self, admin_client):
-        """Test partial update of a mod"""
-        game = GameFactory()
-        mod = GameModFactory(game=game, name="Test Mod")
-
-        url = reverse("gamemod-detail", kwargs={"pk": mod.id})
-        data = {"description": "New description"}
-
-        response = admin_client.patch(url, data, format="json")
-
-        assert response.status_code == status.HTTP_200_OK
-        mod.refresh_from_db()
-        assert mod.description == "New description"
-
-    def test_delete_mod(self, admin_client):
-        """Test deleting a mod"""
-        game = GameFactory()
-        mod = GameModFactory(game=game)
-
-        url = reverse("gamemod-detail", kwargs={"pk": mod.id})
-        response = admin_client.delete(url)
-
-        assert response.status_code == status.HTTP_204_NO_CONTENT
-        assert not GameMod.objects.filter(game=game).exists()
 
 
 @pytest.mark.django_db

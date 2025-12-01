@@ -203,11 +203,17 @@ class ContainerLogsConsumer(AsyncWebsocketConsumer):
 
     async def send_log(self, log_line: str) -> None:
         """Send a log line to the client"""
+
+        cleaned_line = log_line.rstrip()
+
+        if not cleaned_line:
+            return
+            
         await self.send(
             text_data=json.dumps(
                 {
                     "type": "log",
-                    "data": log_line.strip(),
+                    "data": cleaned_line,
                 }
             )
         )

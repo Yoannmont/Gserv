@@ -6,6 +6,7 @@ from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -217,30 +218,6 @@ class UserViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    @action(detail=False, methods=["post"])
-    def logout(self, request):
-        user_id = request.user.id if request.user.is_authenticated else None
-        if not user_id:
-            return Response(
-                {"error": "Utilisateur non authentifié"},
-                status=status.HTTP_401_UNAUTHORIZED,
-            )
-        logger.info(f"[accounts_user_logout] User logout request id={user_id}")
-        try:
-            refresh_token = request.data.get("refresh")
-            if refresh_token:
-                token = RefreshToken(refresh_token)
-                token.blacklist()
-
-            logout(request)
-            logger.info(f"[accounts_user_logout] User logged out successfully id={user_id}")
-            return Response({"message": "Déconnexion réussie"}, status=status.HTTP_200_OK)
-        except TokenError:
-            logger.warning(f"[accounts_user_logout] Invalid token id={user_id}")
-            return Response({"error": "Token invalide"}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            logger.error(f"[accounts_user_logout] Logout error id={user_id} error={str(e)}")
-            return Response({"error": "Erreur lors de la déconnexion"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=["post"])
     def change_password(self, request):
@@ -319,3 +296,25 @@ class UserViewSet(viewsets.ModelViewSet):
                 {"error": "Une erreur est survenue lors de la mise à jour"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+
+class TokenLogoutView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    def post(self, request):
+        user_id = request.user.id
+        try:
+            refresh_token = request.data.get("refresh")
+            if not refresh_token:
+                raise DRFValidationError("Refresh token is required")
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+
+            logout(request)
+            logger.info(f"[accounts_token_logout] User logged out successfully id={user_id}")
+            return Response({"message": "Déconnexion réussie"}, status=status.HTTP_200_OK)
+        except (TokenError, DRFValidationError):
+            logger.warning(f"[accounts_token_logout] Invalid or missing refresh token id={user_id}")
+            return Response({"error": "Token invalide ou manquant"}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.error(f"[accounts_token_logout] Logout error id={user_id} error={str(e)}")
+            return Response({"error": "Erreur lors de la déconnexion"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

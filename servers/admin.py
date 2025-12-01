@@ -4,7 +4,6 @@ from servers.models import (
     ServerConfiguration,
     ServerInstance,
     ServerMetrics,
-    ServerMod,
     ServerPlayer,
     ServerStatus,
 )
@@ -15,12 +14,6 @@ class ServerConfigurationInline(admin.StackedInline):
     can_delete = False
     verbose_name_plural = "Configuration"
 
-
-class ServerModInline(admin.TabularInline):
-    model = ServerMod
-    extra = 0
-    fields = ["mod", "is_enabled", "installed_at"]
-    readonly_fields = ["installed_at"]
 
 
 @admin.register(ServerInstance)
@@ -38,7 +31,7 @@ class ServerInstanceAdmin(admin.ModelAdmin):
     list_filter = ["status", "game", "is_public", "auto_start", "auto_update", "created_at"]
     search_fields = ["name", "owner__username", "description"]
     date_hierarchy = "created_at"
-    inlines = [ServerConfigurationInline, ServerModInline]
+    inlines = [ServerConfigurationInline]
 
     fieldsets = [
         (
@@ -68,19 +61,6 @@ class ServerConfigurationAdmin(admin.ModelAdmin):
         ("Avancé", {"fields": ("custom_startup_command",), "classes": ("collapse",)}),
     ]
 
-
-@admin.register(ServerMod)
-class ServerModAdmin(admin.ModelAdmin):
-    list_display = ["server", "mod", "is_enabled", "installed_at"]
-    list_filter = ["is_enabled", "installed_at", "server__game"]
-    search_fields = ["server__name", "mod__name"]
-    date_hierarchy = "installed_at"
-
-    fieldsets = [
-        ("Association", {"fields": ("server", "mod")}),
-        ("Statut", {"fields": ("is_enabled",)}),
-        ("Configuration", {"fields": ("custom_config",), "classes": ("collapse",)}),
-    ]
 
 
 @admin.register(ServerStatus)

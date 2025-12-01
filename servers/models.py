@@ -1,7 +1,7 @@
 from django.conf import settings
 from django.db import models
 
-from games.models import Game, GameMod, GameVersion
+from games.models import Game, GameVersion
 
 
 class ServerInstance(models.Model):
@@ -141,36 +141,6 @@ class ServerConfiguration(models.Model):
 
     def __str__(self):
         return f"Configuration de {self.server.name}"
-
-
-class ServerMod(models.Model):
-    """Mods installed on a game server instance"""
-
-    server = models.ForeignKey(
-        ServerInstance,
-        on_delete=models.CASCADE,
-        related_name="installed_mods",
-        verbose_name="Serveur",
-    )
-    mod = models.ForeignKey(
-        GameMod,
-        on_delete=models.CASCADE,
-        related_name="server_installations",
-        verbose_name="Mod",
-    )
-    is_enabled = models.BooleanField(default=True, verbose_name="Activé")
-    custom_config = models.JSONField(default=dict, blank=True, verbose_name="Configuration personnalisée")
-    installed_at = models.DateTimeField(auto_now_add=True, verbose_name="Date d'installation")
-    updated_at = models.DateTimeField(auto_now=True, verbose_name="Dernière mise à jour")
-
-    class Meta:
-        verbose_name = "Mod installé"
-        verbose_name_plural = "Mods installés"
-        unique_together = ["server", "mod"]
-        ordering = ["mod__name"]
-
-    def __str__(self):
-        return f"{self.mod.name} sur {self.server.name}"
 
 
 class ServerStatus(models.Model):

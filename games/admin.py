@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from games.models import Game, GameConfiguration, GameMod, GameVersion
+from games.models import Game, GameConfiguration, GameVersion
 
 
 @admin.register(Game)
@@ -31,23 +31,6 @@ class GameVersionAdmin(admin.ModelAdmin):
         ("Changelog", {"fields": ("changelog",), "classes": ("collapse",)}),
     ]
 
-
-@admin.register(GameMod)
-class GameModAdmin(admin.ModelAdmin):
-    list_display = ["name", "game", "mod_type", "version", "author", "is_active"]
-    list_filter = ["game", "mod_type", "is_active"]
-    search_fields = ["name", "slug", "author"]
-    prepopulated_fields = {"slug": ("name",)}
-    filter_horizontal = ["compatible_game_versions"]
-
-    fieldsets = [
-        ("Informations générales", {"fields": ("game", "name", "slug", "description")}),
-        ("Type et version", {"fields": ("mod_type", "version", "author")}),
-        ("Téléchargement", {"fields": ("download_url", "file_name")}),
-        ("Compatibilité", {"fields": ("compatible_game_versions",)}),
-        ("Liens", {"fields": ("website",)}),
-        ("Statut", {"fields": ("is_active",)}),
-    ]
 
 
 @admin.register(GameConfiguration)

@@ -303,68 +303,6 @@ class ServerManager:
             logger.error("[server_manager] Error during command execution: %r", e)
             raise
 
-    def install_mod(self, server_instance, mod) -> bool:
-        """
-        Install a mod on a server
-
-        Args:
-            server_instance: ServerInstance instance
-            mod: GameMod instance
-
-        Returns:
-            True if installed successfully
-        """
-        try:
-            logger.info(f"[server_manager] Installing mod {mod.name} on {server_instance.name}")
-
-            # Mods directory path
-            mods_path = os.path.join(self._get_server_path(server_instance), "mods")
-            os.makedirs(mods_path, exist_ok=True)
-
-            # Download the mod
-            import requests
-
-            response = requests.get(mod.download_url, stream=True)
-            response.raise_for_status()
-
-            mod_file_path = os.path.join(mods_path, mod.file_name)
-            with open(mod_file_path, "wb") as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    f.write(chunk)
-
-            logger.info(f"[server_manager] Mod {mod.name} installed: {mod_file_path}")
-            return True
-
-        except Exception as e:
-            logger.error("[server_manager] Error during mod installation: %r", e)
-            raise
-
-    def uninstall_mod(self, server_instance, mod) -> bool:
-        """
-        Uninstall a mod from a server
-
-        Args:
-            server_instance: ServerInstance instance
-            mod: GameMod instance
-
-        Returns:
-            True if uninstalled successfully
-        """
-        try:
-            logger.info(f"[server_manager] Uninstalling mod {mod.name} from {server_instance.name}")
-
-            mod_file_path = os.path.join(self._get_server_path(server_instance), "mods", mod.file_name)
-
-            if os.path.exists(mod_file_path):
-                os.remove(mod_file_path)
-                logger.info(f"[server_manager] Mod {mod.name} uninstalled")
-
-            return True
-
-        except Exception as e:
-            logger.error("[server_manager] Error during mod uninstallation: %r", e)
-            raise
-
     # Private methods
 
     def _create_server_directories(self, server_instance) -> str:

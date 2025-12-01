@@ -1,11 +1,9 @@
 from rest_framework import serializers
 
-from games.models import GameMod
-from games.serializers import GameModSerializer, GameSerializer, GameVersionSerializer
+from games.serializers import GameSerializer, GameVersionSerializer
 from servers.models import (
     ServerConfiguration,
     ServerInstance,
-    ServerMod,
     ServerPlayer,
     ServerStatus,
 )
@@ -29,24 +27,6 @@ class ServerConfigurationSerializer(serializers.ModelSerializer):
         if "data" not in value:
             raise serializers.ValidationError("At least data folder need mapping")
         return value
-
-
-class ServerModSerializer(serializers.ModelSerializer):
-    mod = GameModSerializer(read_only=True)
-    mod_id = serializers.PrimaryKeyRelatedField(queryset=GameMod.objects.all(), source="mod", write_only=True)
-
-    class Meta:
-        model = ServerMod
-        fields = [
-            "id",
-            "mod",
-            "mod_id",
-            "is_enabled",
-            "custom_config",
-            "installed_at",
-            "updated_at",
-        ]
-        read_only_fields = ["id", "installed_at", "updated_at"]
 
 
 class ServerPlayerSerializer(serializers.ModelSerializer):
@@ -115,7 +95,6 @@ class ServerInstanceDetailSerializer(serializers.ModelSerializer):
     game_version = GameVersionSerializer()
     owner_username = serializers.CharField(source="owner.username", read_only=True)
     configuration = ServerConfigurationSerializer()
-    installed_mods = ServerModSerializer(many=True, read_only=True)
     players = ServerPlayerSerializer(many=True, read_only=True)
     latest_status = serializers.SerializerMethodField()
 
@@ -139,7 +118,6 @@ class ServerInstanceDetailSerializer(serializers.ModelSerializer):
             "is_public",
             "is_running",
             "configuration",
-            "installed_mods",
             "players",
             "latest_status",
             "created_at",

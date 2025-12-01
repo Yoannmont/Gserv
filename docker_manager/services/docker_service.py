@@ -281,8 +281,21 @@ class DockerService:
                 tail=tail,
                 timestamps=timestamps,
             )
-            for log_line in log_stream:
-                yield log_line.decode("utf-8", errors="replace")
+
+            buffer = ""
+
+            for chunk in log_stream:
+
+                decoded_chunk = chunk.decode("utf-8", errors="replace")
+
+                buffer += decoded_chunk
+
+                while "\n" in buffer:
+                    line, buffer = buffer.split("\n", 1)
+
+                    if line.strip():
+                        yield line
+
         except docker.errors.NotFound:
             raise DockerServiceError(f"[docker_service] Container {container_id} not found")
         except docker.errors.APIError as e:
