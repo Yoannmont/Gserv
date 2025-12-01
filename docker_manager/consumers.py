@@ -77,7 +77,9 @@ class ContainerLogsConsumer(AsyncWebsocketConsumer):
         # Verify access to the container
         has_access = await self._verify_container_access()
         if not has_access:
-            logger.error("[ContainerLogsConsumer] User %s has no access to %s container. Rejecting", self.user.username, self.container_id)
+            logger.error(
+                "[ContainerLogsConsumer] User %s has no access to %s container. Rejecting", self.user.username, self.container_id
+            )
             await self.close(code=4003)
             return
 
@@ -208,7 +210,7 @@ class ContainerLogsConsumer(AsyncWebsocketConsumer):
 
         if not cleaned_line:
             return
-            
+
         await self.send(
             text_data=json.dumps(
                 {

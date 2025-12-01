@@ -2,7 +2,7 @@ import pytest
 from django.urls import reverse
 from rest_framework import status
 
-from games.models import Game, GameVersion
+from games.models import Game
 from games.tests.games_factories import (
     GameConfigurationFactory,
     GameFactory,
@@ -232,7 +232,6 @@ class TestGameVersionViewSet:
         response = admin_client.delete(url)
 
         assert response.status_code == status.HTTP_204_NO_CONTENT
-
 
 
 @pytest.mark.django_db

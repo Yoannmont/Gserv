@@ -166,7 +166,6 @@ class GameViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-
     @action(detail=True, methods=["get"])
     def configurations(self, request, slug=None):
         logger.info(f"[games_game_configurations] Get game configurations request slug={slug}")

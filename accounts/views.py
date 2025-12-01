@@ -218,7 +218,6 @@ class UserViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-
     @action(detail=False, methods=["post"])
     def change_password(self, request):
         """
@@ -300,6 +299,7 @@ class UserViewSet(viewsets.ModelViewSet):
 
 class TokenLogoutView(APIView):
     permission_classes = [permissions.IsAuthenticated]
+
     def post(self, request):
         user_id = request.user.id
         try:

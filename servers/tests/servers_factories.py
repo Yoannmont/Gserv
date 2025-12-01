@@ -41,8 +41,6 @@ class ServerConfigurationFactory(DjangoModelFactory):
     cpu_limit = 2.0
 
 
-
-
 class ServerStatusFactory(DjangoModelFactory):
     class Meta:
         model = ServerStatus

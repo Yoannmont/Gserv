@@ -74,7 +74,6 @@ class GameVersion(models.Model):
         return f"{self.game.name} - {self.version}"
 
 
-
 class GameConfiguration(models.Model):
     game = models.ForeignKey(Game, on_delete=models.CASCADE, related_name="configurations", verbose_name="Jeu")
     name = models.CharField(max_length=100, verbose_name="Nom de la configuration")
@@ -91,4 +90,3 @@ class GameConfiguration(models.Model):
 
     def __str__(self):
         return f"{self.game.name} - {self.name}"
-

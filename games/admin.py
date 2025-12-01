@@ -32,7 +32,6 @@ class GameVersionAdmin(admin.ModelAdmin):
     ]
 
 
-
 @admin.register(GameConfiguration)
 class GameConfigurationAdmin(admin.ModelAdmin):
     list_display = ["name", "game", "is_default", "created_at"]

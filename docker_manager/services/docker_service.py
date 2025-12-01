@@ -285,7 +285,6 @@ class DockerService:
             buffer = ""
 
             for chunk in log_stream:
-
                 decoded_chunk = chunk.decode("utf-8", errors="replace")
 
                 buffer += decoded_chunk

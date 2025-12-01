@@ -15,7 +15,6 @@ class ServerConfigurationInline(admin.StackedInline):
     verbose_name_plural = "Configuration"
 
 
-
 @admin.register(ServerInstance)
 class ServerInstanceAdmin(admin.ModelAdmin):
     list_display = [
@@ -60,7 +59,6 @@ class ServerConfigurationAdmin(admin.ModelAdmin):
         ("Configuration", {"fields": ("config_data",)}),
         ("Avancé", {"fields": ("custom_startup_command",), "classes": ("collapse",)}),
     ]
-
 
 
 @admin.register(ServerStatus)

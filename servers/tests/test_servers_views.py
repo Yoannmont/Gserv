@@ -310,7 +310,6 @@ class TestServerActions:
         assert len(response.data) == 5
 
 
-
 @pytest.mark.django_db
 class TestServerPlayersManagement:
     def test_list_server_players(self, authenticated_client, user):

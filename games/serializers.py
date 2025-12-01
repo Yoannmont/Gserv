@@ -67,7 +67,6 @@ class GameDetailSerializer(GameSerializer):
         fields = GameSerializer.Meta.fields + ["versions"]
 
 
-
 class GameConfigurationSerializer(serializers.ModelSerializer):
     game_name = serializers.CharField(source="game.name", read_only=True)
 

@@ -476,6 +476,7 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
             logger.error(f"[servers_instance_players] Unexpected error id={pk} error={str(e)}")
             raise
 
+
 class ServerPlayerViewSet(viewsets.ModelViewSet):
     queryset = ServerPlayer.objects.all()
     serializer_class = ServerPlayerSerializer
