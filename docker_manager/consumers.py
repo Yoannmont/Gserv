@@ -55,6 +55,7 @@ class ContainerLogsConsumer(AsyncWebsocketConsumer):
     async def connect(self) -> None:
         """Handle WebSocket connection"""
         self.container_id = self.scope["url_route"]["kwargs"]["container_id"]
+        logger.info("[ContainerLogsConsumer] Trying to access to %s logs", self.container_id)
 
         # Parse query parameters
         query_string = self.scope.get("query_string", b"").decode()
@@ -64,16 +65,19 @@ class ContainerLogsConsumer(AsyncWebsocketConsumer):
         token = query_params.get("token")
         if not token:
             await self.close(code=4001)
+            logger.error("[ContainerLogsConsumer] No token received. Rejecting")
             return
 
         self.user = await self._authenticate_token(token)
         if not self.user:
             await self.close(code=4001)
+            logger.error("[ContainerLogsConsumer] No matching user found. Rejecting")
             return
 
         # Verify access to the container
         has_access = await self._verify_container_access()
         if not has_access:
+            logger.error("[ContainerLogsConsumer] User %s has no access to %s container. Rejecting", self.user.username, self.container_id)
             await self.close(code=4003)
             return
 

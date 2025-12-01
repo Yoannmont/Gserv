@@ -33,7 +33,8 @@ class Dev(Configuration):
     DOTENV = BASE_DIR / ".env"
     SECRET_KEY = "django-insecure-sqz8f9syr4_893ti*bv7e@))iu_878bke26*!4i_1k5=eq$^ly"
     DEBUG = True
-    ALLOWED_HOSTS = []
+    ALLOWED_HOSTS = ["*", "localhost", "127.0.0.1"]
+
 
     INSTALLED_APPS = [
         "daphne",
