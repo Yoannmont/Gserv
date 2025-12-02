@@ -10,7 +10,7 @@ class ServerInstance(models.Model):
     CREATING = "creating"
     CREATED = "created"
     STARTING = "starting"
-    STARTED = "running"
+    RUNNING = "running"
     STOPPING = "stopping"
     STOPPED = "stopped"
     UPDATING = "updating"
@@ -20,7 +20,7 @@ class ServerInstance(models.Model):
         (CREATING, "Création en cours"),
         (CREATED, "Créé"),
         (STARTING, "Démarrage demandé"),
-        (STARTED, "Démarré"),
+        (RUNNING, "Démarré"),
         (STOPPING, "Arrêt en cours"),
         (STOPPED, "Arrêté"),
         (UPDATING, "Mise à jour"),
@@ -70,7 +70,7 @@ class ServerInstance(models.Model):
 
     @property
     def is_running(self):
-        return self.status == self.STARTED
+        return self.status == self.RUNNING
 
     def get_all_port_mappings(self):
         """Return all port mappings for this server"""

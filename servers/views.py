@@ -116,9 +116,6 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
         except NotFound:
             logger.warning(f"[servers_instance_retrieve] Server not found id={server_id}")
             return Response({"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            logger.error(f"[servers_instance_retrieve] Error retrieving server id={server_id} error={str(e)}")
-            return Response({"error": "Erreur lors de la récupération du serveur"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def update(self, request, *args, **kwargs):
         server_id = kwargs.get("pk")
@@ -139,9 +136,6 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
                 {"error": "Erreur de contrainte d'intégrité lors de la mise à jour"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        except Exception as e:
-            logger.error(f"[servers_instance_update] Unexpected error id={server_id} error={str(e)}")
-            return Response({"error": "Erreur lors de la mise à jour du serveur"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def partial_update(self, request, *args, **kwargs):
         server_id = kwargs.get("pk")
@@ -162,11 +156,6 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
                 {"error": "Erreur de contrainte d'intégrité lors de la mise à jour"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        except Exception as e:
-            logger.error(f"[servers_instance_partial_update] Unexpected error id={server_id} error={str(e)}")
-            return Response(
-                {"error": "Erreur lors de la mise à jour partielle du serveur"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
 
     def destroy(self, request, *args, **kwargs):
         server_id = kwargs.get("pk")
@@ -176,6 +165,9 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
             logger.info(f"[servers_instance_destroy] Server instance deleted successfully id={server_id}")
             return response
         except NotFound:
+            logger.warning(f"[servers_instance_destroy] Server not found id={server_id}")
+            return Response({"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
+        except ServerInstance.DoesNotExist:
             logger.warning(f"[servers_instance_destroy] Server not found id={server_id}")
             return Response({"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:

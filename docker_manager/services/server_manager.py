@@ -83,7 +83,7 @@ class ServerManager:
 
             # Update timestamp
             server_instance.last_started_at = timezone.now()
-            server_instance.status = ServerInstance.STARTED
+            server_instance.status = ServerInstance.RUNNING
             server_instance.save(update_fields=["last_started_at", "status"])
 
             return True
@@ -143,7 +143,7 @@ class ServerManager:
             self.docker_service.restart_container(server_instance.container_id, timeout)
 
             server_instance.last_started_at = timezone.now()
-            server_instance.status = ServerInstance.STARTED
+            server_instance.status = ServerInstance.RUNNING
             server_instance.save(update_fields=["last_started_at", "status"])
 
             return True

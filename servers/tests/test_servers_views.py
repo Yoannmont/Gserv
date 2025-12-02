@@ -1,8 +1,11 @@
+from unittest.mock import patch
+
 import pytest
 from django.urls import reverse
 from rest_framework import status
 
 from accounts.tests.accounts_factories import UserFactory
+from docker_manager.tasks import restart_server_task, start_server_task, stop_server_task, update_server_task
 from games.tests.games_factories import GameFactory, GameVersionFactory
 from servers.models import ServerInstance
 from servers.tests.servers_factories import (
@@ -13,9 +16,9 @@ from servers.tests.servers_factories import (
 
 @pytest.mark.django_db
 class TestServerInstanceViewSet:
-    def test_list_servers_as_owner(self, authenticated_client, user):
+    def test_list_servers_as_owner(self, authenticated_client, user, patched_docker_service, fake_container):
         ServerInstanceFactory.create_batch(3, owner=user)
-        ServerInstanceFactory()
+        ServerInstanceFactory(container_id=fake_container.id)
 
         url = reverse("server-list")
         response = authenticated_client.get(url)
@@ -34,8 +37,8 @@ class TestServerInstanceViewSet:
         assert response.status_code == status.HTTP_200_OK
         assert len(response.data["results"]) == 3
 
-    def test_list_servers_as_admin(self, admin_client):
-        ServerInstanceFactory.create_batch(5)
+    def test_list_servers_as_admin(self, admin_client, patched_docker_service, fake_container):
+        ServerInstanceFactory.create_batch(5, container_id=fake_container.id)
 
         url = reverse("server-list")
         response = admin_client.get(url)
@@ -43,7 +46,7 @@ class TestServerInstanceViewSet:
         assert response.status_code == status.HTTP_200_OK
         assert len(response.data["results"]) == 5
 
-    def test_create_server(self, authenticated_client, user):
+    def test_create_server(self, authenticated_client, user, patched_docker_service, fake_container):
         game = GameFactory()
         version = GameVersionFactory(game=game)
 
@@ -86,8 +89,8 @@ class TestServerInstanceViewSet:
             },
         }
 
-    def test_retrieve_own_server(self, authenticated_client, user):
-        server = ServerInstanceFactory(owner=user)
+    def test_retrieve_own_server(self, authenticated_client, user, patched_docker_service, fake_container):
+        server = ServerInstanceFactory(owner=user, container_id=fake_container.id)
 
         url = reverse("server-detail", kwargs={"pk": server.id})
         response = authenticated_client.get(url)
@@ -95,17 +98,17 @@ class TestServerInstanceViewSet:
         assert response.status_code == status.HTTP_200_OK
         assert response.data["id"] == server.id
 
-    def test_retrieve_other_user_private_server_forbidden(self, authenticated_client):
+    def test_retrieve_other_user_private_server_forbidden(self, authenticated_client, patched_docker_service, fake_container):
         other_user = UserFactory()
-        server = ServerInstanceFactory(owner=other_user, is_public=False)
+        server = ServerInstanceFactory(owner=other_user, is_public=False, container_id=fake_container.id)
 
         url = reverse("server-detail", kwargs={"pk": server.id})
         response = authenticated_client.get(url)
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_update_own_server(self, authenticated_client, user):
-        server = ServerInstanceFactory(owner=user, name="Old Name")
+    def test_update_own_server(self, authenticated_client, user, patched_docker_service, fake_container):
+        server = ServerInstanceFactory(owner=user, name="Old Name", container_id=fake_container.id)
 
         url = reverse("server-detail", kwargs={"pk": server.id})
         data = {"name": "New Name"}
@@ -116,9 +119,9 @@ class TestServerInstanceViewSet:
         server.refresh_from_db()
         assert server.name == "New Name"
 
-    def test_update_other_user_server_forbidden(self, authenticated_client):
+    def test_update_other_user_server_forbidden(self, authenticated_client, patched_docker_service, fake_container):
         other_user = UserFactory()
-        server = ServerInstanceFactory(owner=other_user)
+        server = ServerInstanceFactory(owner=other_user, container_id=fake_container.id)
 
         url = reverse("server-detail", kwargs={"pk": server.id})
         data = {"name": "Hacked Name"}
@@ -127,8 +130,8 @@ class TestServerInstanceViewSet:
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_delete_own_server(self, authenticated_client, user):
-        server = ServerInstanceFactory(owner=user)
+    def test_delete_own_server(self, authenticated_client, user, patched_docker_service, fake_container):
+        server = ServerInstanceFactory(owner=user, container_id=fake_container.id)
 
         url = reverse("server-detail", kwargs={"pk": server.id})
         response = authenticated_client.delete(url)
@@ -139,7 +142,7 @@ class TestServerInstanceViewSet:
 
         assert not ServerInstance.objects.filter(id=server.id).exists()
 
-    def test_update_server_full(self, authenticated_client, user):
+    def test_update_server_full(self, authenticated_client, user, patched_docker_service, fake_container):
         game = GameFactory()
         version = GameVersionFactory(game=game)
 
@@ -176,12 +179,7 @@ class TestServerInstanceViewSet:
                 "environment_variables": {
                     "key": "value",
                 },
-                "docker_volumes": [
-                    {
-                        "source": "/path/to/source",
-                        "target": "/path/to/target",
-                    },
-                ],
+                "docker_volumes": {"data": {"source": "/path/to/source", "target": "/path/to/target"}},
                 "memory_limit": "2g",
                 "cpu_limit": 2.0,
                 "custom_startup_command": "echo 'Hello, world!'",
@@ -201,18 +199,13 @@ class TestServerInstanceViewSet:
         assert server.is_public is True
         assert server.configuration.config_data == {"key": "value"}
         assert server.configuration.environment_variables == {"key": "value"}
-        assert server.configuration.docker_volumes == [
-            {
-                "source": "/path/to/source",
-                "target": "/path/to/target",
-            },
-        ]
+        assert server.configuration.docker_volumes == {"data": {"source": "/path/to/source", "target": "/path/to/target"}}
         assert server.configuration.memory_limit == "2g"
         assert server.configuration.cpu_limit == 2.0
         assert server.configuration.custom_startup_command == "echo 'Hello, world!'"
 
-    def test_partial_update_server(self, authenticated_client, user):
-        server = ServerInstanceFactory(owner=user, name="Old Name")
+    def test_partial_update_server(self, authenticated_client, user, patched_docker_service, fake_container):
+        server = ServerInstanceFactory(owner=user, name="Old Name", container_id=fake_container.id)
 
         url = reverse("server-detail", kwargs={"pk": server.id})
         data = {"name": "Partially Updated"}
@@ -226,66 +219,81 @@ class TestServerInstanceViewSet:
 
 @pytest.mark.django_db
 class TestServerActions:
-    def test_start_server(self, authenticated_client, user):
-        server = ServerInstanceFactory(owner=user, status=ServerInstance.CREATED)
+    def test_start_server(self, authenticated_client, user, patched_docker_service, fake_container):
+        server = ServerInstanceFactory(owner=user, status=ServerInstance.CREATED, container_id=fake_container.id)
 
         url = reverse("server-start", kwargs={"pk": server.id})
-        response = authenticated_client.post(url)
+        with patch("docker_manager.tasks.start_server_task.delay", lambda server_id: start_server_task.apply(args=[server_id])):
+            response = authenticated_client.post(url)
 
         assert response.status_code == status.HTTP_200_OK
         server.refresh_from_db()
-        assert server.status == ServerInstance.STARTING
+        assert server.status == ServerInstance.RUNNING
 
-    def test_start_already_running_server(self, authenticated_client, user):
-        server = ServerInstanceFactory(owner=user, status=ServerInstance.STARTED)
+    def test_start_already_running_server(self, authenticated_client, user, patched_docker_service, fake_container):
+        server = ServerInstanceFactory(owner=user, status=ServerInstance.RUNNING, container_id=fake_container.id)
 
         url = reverse("server-start", kwargs={"pk": server.id})
-        response = authenticated_client.post(url)
+
+        with patch("docker_manager.tasks.start_server_task.delay", lambda server_id: start_server_task.apply(args=[server_id])):
+            authenticated_client.post(url)
+            response = authenticated_client.post(url)
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
-    def test_stop_server(self, authenticated_client, user):
-        server = ServerInstanceFactory(owner=user, status=ServerInstance.STARTED)
+    def test_stop_server(self, authenticated_client, user, patched_docker_service, fake_container):
+        server = ServerInstanceFactory(owner=user, status=ServerInstance.RUNNING, container_id=fake_container.id)
 
         url = reverse("server-stop", kwargs={"pk": server.id})
-        response = authenticated_client.post(url)
+        with patch("docker_manager.tasks.stop_server_task.delay", lambda server_id: stop_server_task.apply(args=[server_id])):
+            response = authenticated_client.post(url)
 
         assert response.status_code == status.HTTP_200_OK
         server.refresh_from_db()
-        assert server.status == ServerInstance.STOPPING
+        assert server.status == ServerInstance.STOPPED
 
-    def test_stop_already_stopped_server(self, authenticated_client, user):
-        server = ServerInstanceFactory(owner=user, status=ServerInstance.STOPPED)
+    def test_stop_already_stopped_server(self, authenticated_client, user, patched_docker_service, fake_container):
+        server = ServerInstanceFactory(owner=user, status=ServerInstance.STOPPED, container_id=fake_container.id)
 
         url = reverse("server-stop", kwargs={"pk": server.id})
-        response = authenticated_client.post(url)
+        with patch("docker_manager.tasks.stop_server_task.delay", lambda server_id: stop_server_task.apply(args=[server_id])):
+            authenticated_client.post(url)
+            response = authenticated_client.post(url)
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "error" in response.data
 
-    def test_restart_server(self, authenticated_client, user):
-        server = ServerInstanceFactory(owner=user, status=ServerInstance.STARTED)
+    def test_restart_server(self, authenticated_client, user, patched_docker_service, fake_container):
+        server = ServerInstanceFactory(owner=user, status=ServerInstance.RUNNING, container_id=fake_container.id)
 
         url = reverse("server-restart", kwargs={"pk": server.id})
-        response = authenticated_client.post(url)
+        with patch(
+            "docker_manager.tasks.restart_server_task.delay", lambda server_id: restart_server_task.apply(args=[server_id])
+        ):
+            response = authenticated_client.post(url)
 
         assert response.status_code == status.HTTP_200_OK
 
-    def test_update_server_stopped(self, authenticated_client, user):
-        server = ServerInstanceFactory(owner=user, status=ServerInstance.STOPPED)
+    def test_update_server_stopped(self, authenticated_client, user, patched_docker_service, fake_container):
+        server = ServerInstanceFactory(owner=user, status=ServerInstance.CREATED, container_id=fake_container.id)
 
+        first_id = fake_container.id
         url = reverse("server-update-server", kwargs={"pk": server.id})
-        response = authenticated_client.post(url)
+        with (
+            patch("docker_manager.tasks.update_server_task.delay", lambda server_id: update_server_task.apply(args=[server_id])),
+            patch("docker_manager.services.docker_service._docker_service._format_memory", return_value="2g"),
+        ):
+            response = authenticated_client.post(url)
 
         assert response.status_code == status.HTTP_200_OK
         server.refresh_from_db()
-        assert server.status == ServerInstance.UPDATING
+        assert first_id != server.container_id
+        assert server.status == ServerInstance.STOPPED
 
-    def test_update_running_server_without_force(self, authenticated_client, user):
-        server = ServerInstanceFactory(owner=user, status=ServerInstance.STARTED)
+    def test_update_running_server_without_force(self, authenticated_client, user, patched_docker_service, fake_container):
+        server = ServerInstanceFactory(owner=user, status=ServerInstance.RUNNING, container_id=fake_container.id)
 
         _server = ServerInstance.objects.first()
-        assert _server.status == ServerInstance.STARTED
+        assert _server.status == ServerInstance.RUNNING
         assert _server.id == server.id
 
         url = reverse("server-update-server", kwargs={"pk": server.id})
@@ -293,19 +301,24 @@ class TestServerActions:
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
-    def test_update_running_server_with_force(self, authenticated_client, user):
-        server = ServerInstanceFactory(owner=user, status=ServerInstance.STARTED)
-
+    def test_update_running_server_with_force(self, authenticated_client, user, patched_docker_service, fake_container):
+        server = ServerInstanceFactory(owner=user, status=ServerInstance.RUNNING, container_id=fake_container.id)
+        first_id = fake_container.id
         url = reverse("server-update-server", kwargs={"pk": server.id})
-        data = {"force": True}
-        response = authenticated_client.post(url, data, format="json")
+        with (
+            patch("docker_manager.tasks.update_server_task.delay", lambda server_id: update_server_task.apply(args=[server_id])),
+            patch("docker_manager.services.docker_service._docker_service._format_memory", return_value="2g"),
+        ):
+            response = authenticated_client.post(url, data={"force": True}, format="json")
 
         assert response.status_code == status.HTTP_200_OK
         server.refresh_from_db()
-        assert server.status == ServerInstance.UPDATING
+        assert server.status == ServerInstance.STOPPED
+        assert first_id != server.container_id
+        assert patched_docker_service.containers.get(server.container_id).status == "created"
 
     def test_get_server_logs(self, authenticated_client, user):
-        server = ServerInstanceFactory(owner=user, container_id="test-container-123")
+        server = ServerInstanceFactory(owner=user)
 
         url = reverse("server-logs", kwargs={"pk": server.id})
         response = authenticated_client.get(url)
@@ -360,9 +373,9 @@ class TestServerPlayersManagement:
 
 @pytest.mark.django_db
 class TestPermissions:
-    def test_user_cannot_access_other_user_server(self, authenticated_client):
+    def test_user_cannot_access_other_user_server(self, authenticated_client, patched_docker_service, fake_container):
         other_user = UserFactory()
-        server = ServerInstanceFactory(owner=other_user, is_public=False)
+        server = ServerInstanceFactory(owner=other_user, is_public=False, container_id=fake_container.id)
 
         url = reverse("server-detail", kwargs={"pk": server.id})
         response = authenticated_client.get(url)

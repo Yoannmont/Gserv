@@ -24,6 +24,36 @@ class DockerService:
             logger.critical("[docker_service] Failed to connect to Docker daemon: %r", e)
             raise DockerServiceError(f"[docker_service] Failed to connect to Docker daemon: {e}")
 
+    @staticmethod
+    def _format_memory(bytes_value: int) -> str:
+        """
+        Convert bytes to memory limit string format (e.g., "2g", "512m")
+
+        Args:
+            bytes_value: Memory in bytes
+
+        Returns:
+            Memory limit string (e.g., "2g", "512m")
+        """
+        if bytes_value is None:
+            return "2g"  # Default
+
+        # Convert to GB, MB, or KB
+        gb = bytes_value / (1024 * 1024 * 1024)
+        if gb >= 1 and gb == int(gb):
+            return f"{int(gb)}g"
+
+        mb = bytes_value / (1024 * 1024)
+        if mb >= 1 and mb == int(mb):
+            return f"{int(mb)}m"
+
+        kb = bytes_value / 1024
+        if kb >= 1 and kb == int(kb):
+            return f"{int(kb)}k"
+
+        # Fallback to GB with decimal
+        return f"{gb:.1f}g"
+
     def create_container(
         self,
         image: str,
@@ -348,24 +378,49 @@ class DockerService:
             # Extract configuration
             name = config["Name"].lstrip("/")
             ports = {}
-            if config["HostConfig"]["PortBindings"]:
-                for container_port, host_config in config["HostConfig"]["PortBindings"].items():
-                    ports[container_port] = int(host_config[0]["HostPort"])
+            port_bindings = config["HostConfig"].get("PortBindings")
+            if port_bindings:
+                if isinstance(port_bindings, dict):
+                    for container_port, host_config in port_bindings.items():
+                        if isinstance(host_config, list) and len(host_config) > 0:
+                            ports[container_port] = int(host_config[0]["HostPort"])
+                elif isinstance(port_bindings, list):
+                    for binding in port_bindings:
+                        if isinstance(binding, dict) and "HostPort" in binding:
+                            container_port = binding.get("ContainerPort", "")
+                            ports[container_port] = int(binding["HostPort"])
 
             environment = config["Config"]["Env"]
             volumes = config["HostConfig"]["Binds"] if preserve_data else None
+            # # Convert Binds list to volumes dict format
+            volumes = {}
+            if preserve_data:
+                binds = config["HostConfig"].get("Binds")
+                if binds:
+                    for bind_str in binds:
+                        # Parse bind string format: "/host:/container:rw" or "/host:/container"
+                        parts = bind_str.split(":")
+                        if len(parts) >= 2:
+                            host_path = parts[0]
+                            container_path = parts[1]
+                            mode = parts[2] if len(parts) > 2 else "rw"
+                            volumes[host_path] = {"bind": container_path, "mode": mode}
 
             # Remove the old container
             self.remove_container(container_id, force=True, volumes=not preserve_data)
 
             # Create the new container
+            # Convert memory from bytes to string format (e.g., "2g")
+            memory_bytes = config["HostConfig"].get("Memory")
+            memory_limit_str = self._format_memory(memory_bytes)
+
             new_container_id = self.create_container(
                 image=image,
                 name=name,
                 ports=ports,
                 environment={var.split("=")[0]: var.split("=")[1] for var in environment if "=" in var},
-                volumes=volumes or {},
-                memory_limit=config["HostConfig"]["Memory"],
+                volumes=volumes,
+                memory_limit=memory_limit_str,
                 cpu_limit=config["HostConfig"]["NanoCpus"] / 1e9,
             )
 

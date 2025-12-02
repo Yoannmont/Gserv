@@ -63,7 +63,7 @@ def start_server_task(self, server_id: int, user_id: int = None):
 
         # Create history entry
         ServerStatus.objects.create(
-            server=server, status=ServerInstance.STARTED, message="Serveur démarré avec succès", triggered_by=triggered_by
+            server=server, status=ServerInstance.RUNNING, message="Serveur démarré avec succès", triggered_by=triggered_by
         )
 
         worker_logger.info(f"[docker_manager] Server {server.name} started with container_id: {server.container_id}")
@@ -151,7 +151,7 @@ def restart_server_task(self, server_id: int, user_id: int = None):
         # Create history entry
 
         ServerStatus.objects.create(
-            server=server, status=ServerInstance.STARTED, message="Serveur redémarré", triggered_by=triggered_by
+            server=server, status=ServerInstance.RUNNING, message="Serveur redémarré", triggered_by=triggered_by
         )
 
         worker_logger.info(f"[docker_manager] Server {server.name} restarted with container_id: {server.container_id}")
@@ -244,7 +244,7 @@ def full_reset_server_task(self, server_id: int, delete_data: bool = False, user
         manager.start_server(server)
 
         ServerStatus.objects.create(
-            server=server, status=ServerInstance.STARTED, message="Serveur remis à zéro et relancé", triggered_by=triggered_by
+            server=server, status=ServerInstance.RUNNING, message="Serveur remis à zéro et relancé", triggered_by=triggered_by
         )
 
         worker_logger.info(f"[docker_manager] Server {server.name} full reset with container_id: {server.container_id}")
@@ -263,7 +263,7 @@ def collect_server_metrics():
         from servers.models import ServerInstance, ServerMetrics
 
         manager = get_server_manager()
-        running_servers = ServerInstance.objects.filter(status=ServerInstance.STARTED)
+        running_servers = ServerInstance.objects.filter(status=ServerInstance.RUNNING)
 
         for server in running_servers:
             try:
@@ -382,7 +382,7 @@ def sync_container_status():
 
                 # Docker -> Django status mapping
                 status_map = {
-                    "running": ServerInstance.STARTED,
+                    "running": ServerInstance.RUNNING,
                     "exited": ServerInstance.STOPPED,
                     "dead": ServerInstance.ERROR,
                     "not_found": ServerInstance.ERROR,

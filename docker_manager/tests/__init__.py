@@ -1,0 +1,2 @@
+# Docker manager tests
+
