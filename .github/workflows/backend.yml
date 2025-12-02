@@ -29,6 +29,7 @@ jobs:
         uv pip install -r requirements/dev.lock
         ruff check
         ruff format --check .
+        cp .env.example .env
         coverage run -m pytest
         coverage report > coverage.txt
         coverage html
