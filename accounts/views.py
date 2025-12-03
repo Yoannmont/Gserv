@@ -6,6 +6,7 @@ from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.response import Response
+from rest_framework.throttling import UserRateThrottle
 from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -25,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = TokenObtainSerializer
+    throttle_classes = []
 
     def post(self, request, *args, **kwargs):
         username = request.data.get("username", "unknown")
@@ -46,6 +48,7 @@ class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
+    throttle_classes = [UserRateThrottle]
 
     def get_serializer_class(self):
         if self.action == "create":
@@ -299,6 +302,7 @@ class UserViewSet(viewsets.ModelViewSet):
 
 class TokenLogoutView(APIView):
     permission_classes = [permissions.IsAuthenticated]
+    throttle_classes = []
 
     def post(self, request):
         user_id = request.user.id

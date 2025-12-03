@@ -7,6 +7,7 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound
 from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.response import Response
+from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 
 from games.models import Game, GameConfiguration, GameVersion
 from games.serializers import (
@@ -30,6 +31,7 @@ class GameViewSet(viewsets.ModelViewSet):
     queryset = Game.objects.filter(is_active=True)
     serializer_class = GameSerializer
     permission_classes = [IsAdminOrReadOnly]
+    throttle_classes = [AnonRateThrottle, UserRateThrottle]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ["name", "description"]
     ordering_fields = ["name", "created_at"]
@@ -189,6 +191,7 @@ class GameVersionViewSet(viewsets.ModelViewSet):
     queryset = GameVersion.objects.all()
     serializer_class = GameVersionSerializer
     permission_classes = [IsAdminOrReadOnly]
+    throttle_classes = [AnonRateThrottle, UserRateThrottle]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ["game", "is_stable", "is_recommended"]
     ordering_fields = ["release_date", "version"]
@@ -314,6 +317,7 @@ class GameConfigurationViewSet(viewsets.ModelViewSet):
     queryset = GameConfiguration.objects.all()
     serializer_class = GameConfigurationSerializer
     permission_classes = [IsAdminOrReadOnly]
+    throttle_classes = [AnonRateThrottle, UserRateThrottle]
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["game", "is_default"]
 

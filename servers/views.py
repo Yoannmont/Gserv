@@ -7,6 +7,7 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound
 from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.response import Response
+from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 
 import docker_manager
 import docker_manager.services
@@ -45,6 +46,7 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
     queryset = ServerInstance.objects.all()
     serializer_class = ServerInstanceListSerializer
     permission_classes = [permissions.IsAuthenticated, IsOwnerOrAdmin]
+    throttle_classes = [AnonRateThrottle, UserRateThrottle]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ["game", "status", "is_public", "owner"]
     search_fields = ["name", "description"]
@@ -473,6 +475,7 @@ class ServerPlayerViewSet(viewsets.ModelViewSet):
     queryset = ServerPlayer.objects.all()
     serializer_class = ServerPlayerSerializer
     permission_classes = [permissions.IsAuthenticated, IsOwnerOrAdmin]
+    throttle_classes = [AnonRateThrottle, UserRateThrottle]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     filterset_fields = ["server", "permission_level", "is_banned"]
     search_fields = ["minecraft_username", "minecraft_uuid"]

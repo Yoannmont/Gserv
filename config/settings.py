@@ -36,6 +36,8 @@ class Dev(Configuration):
     ALLOWED_HOSTS = ["*", "localhost", "127.0.0.1"]
 
     INSTALLED_APPS = [
+        "admin_interface",
+        "colorfield",
         "daphne",
         "accounts",
         "django.contrib.admin",
@@ -99,12 +101,7 @@ class Dev(Configuration):
     }
     # endregion
 
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "db.sqlite3",
-        }
-    }
+    DATABASES = values.DatabaseURLValue(environ_prefix=None)
 
     AUTH_USER_MODEL = "accounts.User"
 
@@ -208,7 +205,16 @@ class Dev(Configuration):
             "rest_framework.filters.OrderingFilter",
         ],
         "DATETIME_FORMAT": "%Y-%m-%d %H:%M:%S",
+        "DEFAULT_THROTTLE_CLASSES": [
+            "rest_framework.throttling.AnonRateThrottle",
+            "rest_framework.throttling.UserRateThrottle",
+        ],
+        "DEFAULT_THROTTLE_RATES": {
+            "anon": "0/hour",
+            "user": "1000/hour",
+        },
     }
+
     # endregion
 
     # region CORS --------------------------------------------------------------------------------------
@@ -254,5 +260,11 @@ class Test(Dev):
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
             "NAME": BASE_DIR / "test.sqlite3",
+        }
+    }
+
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.dummy.DummyCache",
         }
     }

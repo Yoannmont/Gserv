@@ -12,21 +12,21 @@ from games.tests.games_factories import (
 
 @pytest.mark.django_db
 class TestGameViewSet:
-    def test_list_games(self, api_client):
+    def test_list_games(self, authenticated_client):
         GameFactory.create_batch(3, is_active=True)
         GameFactory(is_active=False)  # Should not appear
 
         url = reverse("game-list")
-        response = api_client.get(url)
+        response = authenticated_client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
         assert len(response.data["results"]) == 3
 
-    def test_retrieve_game(self, api_client):
+    def test_retrieve_game(self, authenticated_client):
         game = GameFactory(slug="minecraft")
 
         url = reverse("game-detail", kwargs={"slug": "minecraft"})
-        response = api_client.get(url)
+        response = authenticated_client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
         assert response.data["name"] == game.name
@@ -60,12 +60,12 @@ class TestGameViewSet:
 
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
-    def test_game_versions_action(self, api_client):
+    def test_game_versions_action(self, authenticated_client):
         game = GameFactory(slug="minecraft")
         GameVersionFactory.create_batch(3, game=game)
 
         url = reverse("game-versions", kwargs={"slug": "minecraft"})
-        response = api_client.get(url)
+        response = authenticated_client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
         assert len(response.data) == 3
@@ -134,13 +134,13 @@ class TestGameViewSet:
         assert response.status_code == status.HTTP_204_NO_CONTENT
         assert not Game.objects.filter(id=game.id).exists()
 
-    def test_game_configurations_action(self, api_client):
+    def test_game_configurations_action(self, authenticated_client):
         """Test retrieving game configurations"""
         game = GameFactory(slug="minecraft")
         GameConfigurationFactory.create_batch(3, game=game)
 
         url = reverse("game-configurations", kwargs={"slug": "minecraft"})
-        response = api_client.get(url)
+        response = authenticated_client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
         assert len(response.data) == 3
@@ -148,17 +148,17 @@ class TestGameViewSet:
 
 @pytest.mark.django_db
 class TestGameVersionViewSet:
-    def test_list_versions(self, api_client):
+    def test_list_versions(self, authenticated_client):
         game = GameFactory()
         GameVersionFactory.create_batch(3, game=game)
 
         url = reverse("gameversion-list")
-        response = api_client.get(url)
+        response = authenticated_client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
         assert len(response.data["results"]) == 3
 
-    def test_filter_versions_by_game(self, api_client):
+    def test_filter_versions_by_game(self, authenticated_client):
         game1 = GameFactory()
         game2 = GameFactory()
 
@@ -166,7 +166,7 @@ class TestGameVersionViewSet:
         GameVersionFactory.create_batch(3, game=game2)
 
         url = reverse("gameversion-list")
-        response = api_client.get(url, {"game": game1.id})
+        response = authenticated_client.get(url, {"game": game1.id})
 
         assert response.status_code == status.HTTP_200_OK
         assert len(response.data["results"]) == 2
@@ -191,13 +191,13 @@ class TestGameVersionViewSet:
         assert response.data["is_recommended"] is True
         assert response.data["docker_tag"] == "latest"
 
-    def test_retrieve_version(self, api_client):
+    def test_retrieve_version(self, authenticated_client):
         """Test retrieving a version"""
         game = GameFactory()
         version = GameVersionFactory(game=game, version="1.20.0")
 
         url = reverse("gameversion-detail", kwargs={"pk": version.id})
-        response = api_client.get(url)
+        response = authenticated_client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
         assert response.data["version"] == "1.20.0"
@@ -236,16 +236,16 @@ class TestGameVersionViewSet:
 
 @pytest.mark.django_db
 class TestGameConfigurationViewSet:
-    def test_list_configurations(self, api_client):
+    def test_list_configurations(self, authenticated_client):
         GameConfigurationFactory.create_batch(3)
 
         url = reverse("gameconfiguration-list")
-        response = api_client.get(url)
+        response = authenticated_client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
         assert len(response.data["results"]) == 3
 
-    def test_filter_configurations_by_game(self, api_client):
+    def test_filter_configurations_by_game(self, authenticated_client):
         game1 = GameFactory()
         game2 = GameFactory()
 
@@ -253,18 +253,18 @@ class TestGameConfigurationViewSet:
         GameConfigurationFactory(game=game2)
 
         url = reverse("gameconfiguration-list")
-        response = api_client.get(url, {"game": game1.id})
+        response = authenticated_client.get(url, {"game": game1.id})
 
         assert response.status_code == status.HTTP_200_OK
         assert len(response.data["results"]) == 2
 
-    def test_retrieve_configuration(self, api_client):
+    def test_retrieve_configuration(self, authenticated_client):
         """Test retrieving a configuration"""
         game = GameFactory()
         config = GameConfigurationFactory(game=game, name="Test Config")
 
         url = reverse("gameconfiguration-detail", kwargs={"pk": config.id})
-        response = api_client.get(url)
+        response = authenticated_client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
         assert response.data["name"] == "Test Config"

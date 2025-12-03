@@ -80,8 +80,12 @@ django==5.2.8
     #   djangorestframework
     #   djangorestframework-simplejwt
     #   drf-yasg
+django-admin-interface==0.31.1
+    # via -r requirements/requirements_prod.in
 django-cache-url==3.4.5
     # via django-configurations
+django-colorfield==0.14.0
+    # via django-admin-interface
 django-configurations==2.5.1
     # via -r requirements/requirements_prod.in
 django-cors-headers==4.9.0
@@ -143,7 +147,9 @@ parso==0.8.5
 pexpect==4.9.0
     # via ipython
 pillow==12.0.0
-    # via -r requirements/requirements_prod.in
+    # via
+    #   -r requirements/requirements_prod.in
+    #   django-colorfield
 prompt-toolkit==3.0.52
     # via
     #   click-repl
@@ -176,6 +182,8 @@ python-dotenv==1.2.1
     # via
     #   -r requirements/requirements_prod.in
     #   uvicorn
+python-slugify==8.0.4
+    # via django-admin-interface
 pytz==2025.2
     # via drf-yasg
 pyyaml==6.0.3
@@ -198,6 +206,8 @@ sqlparse==0.5.3
     # via django
 stack-data==0.6.3
     # via ipython
+text-unidecode==1.3
+    # via python-slugify
 traitlets==5.14.3
     # via
     #   ipython

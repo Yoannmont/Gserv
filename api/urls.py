@@ -6,6 +6,15 @@ from accounts.views import CustomTokenObtainPairView, TokenLogoutView, UserViewS
 from games.views import GameConfigurationViewSet, GameVersionViewSet, GameViewSet
 from servers.views import ServerInstanceViewSet, ServerPlayerViewSet
 
+
+class NoThrottleTokenRefreshView(TokenRefreshView):
+    throttle_classes = []
+
+
+class NoThrottleTokenVerifyView(TokenVerifyView):
+    throttle_classes = []
+
+
 router = DefaultRouter()
 
 router.register(r"users", UserViewSet, basename="user")
@@ -19,8 +28,8 @@ router.register(r"server-players", ServerPlayerViewSet, basename="serverplayer")
 
 urlpatterns = [
     path("auth/login/", CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),
-    path("auth/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
-    path("auth/verify/", TokenVerifyView.as_view(), name="token_verify"),
+    path("auth/refresh/", NoThrottleTokenRefreshView.as_view(), name="token_refresh"),
+    path("auth/verify/", NoThrottleTokenVerifyView.as_view(), name="token_verify"),
     path("auth/logout/", TokenLogoutView.as_view(), name="token_logout"),
     path("", include(router.urls)),
 ]

@@ -83,6 +83,17 @@ def patched_docker_service(docker_client_mockup):
             yield docker_client_mockup
 
 
+@pytest.fixture(autouse=True)
+def reset_server_manager():
+    """
+    Reset the singleton ServerManager between each test to avoid shared states
+    """
+
+    import docker_manager.services.server_manager
+
+    docker_manager.services.server_manager._server_manager = None
+
+
 @pytest.fixture
 def fake_container(docker_client_mockup):
     """

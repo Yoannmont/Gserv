@@ -223,7 +223,9 @@ class TestServerActions:
         server = ServerInstanceFactory(owner=user, status=ServerInstance.CREATED, container_id=fake_container.id)
 
         url = reverse("server-start", kwargs={"pk": server.id})
-        with patch("docker_manager.tasks.start_server_task.delay", lambda server_id: start_server_task.apply(args=[server_id])):
+        with patch(
+            "docker_manager.tasks.start_server_task.delay", lambda server_id: start_server_task.apply(args=[server_id, user.id])
+        ):
             response = authenticated_client.post(url)
 
         assert response.status_code == status.HTTP_200_OK
@@ -279,8 +281,10 @@ class TestServerActions:
         first_id = fake_container.id
         url = reverse("server-update-server", kwargs={"pk": server.id})
         with (
-            patch("docker_manager.tasks.update_server_task.delay", lambda server_id: update_server_task.apply(args=[server_id])),
-            patch("docker_manager.services.docker_service._docker_service._format_memory", return_value="2g"),
+            patch(
+                "docker_manager.tasks.update_server_task.delay",
+                lambda server_id: update_server_task.apply(args=[server_id, user.id]),
+            ),
         ):
             response = authenticated_client.post(url)
 
@@ -307,7 +311,6 @@ class TestServerActions:
         url = reverse("server-update-server", kwargs={"pk": server.id})
         with (
             patch("docker_manager.tasks.update_server_task.delay", lambda server_id: update_server_task.apply(args=[server_id])),
-            patch("docker_manager.services.docker_service._docker_service._format_memory", return_value="2g"),
         ):
             response = authenticated_client.post(url, data={"force": True}, format="json")
 

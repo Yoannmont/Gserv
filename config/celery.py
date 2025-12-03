@@ -6,14 +6,13 @@ from celery.schedules import crontab
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 os.environ.setdefault("DJANGO_CONFIGURATION", "Dev")
 
-import configurations
+from configurations import importer
 
-configurations.setup()
-
+importer.install()
 app = Celery("game_server_manager")
 
 
-app.config_from_object("config:settings", namespace="CELERY")
+app.config_from_object("config.settings", namespace="CELERY")
 
 app.autodiscover_tasks()
 
