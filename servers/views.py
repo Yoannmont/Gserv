@@ -1,4 +1,5 @@
 import logging
+import traceback
 
 from django.db import IntegrityError, models
 from django_filters.rest_framework import DjangoFilterBackend
@@ -106,8 +107,8 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
                 {"error": "Erreur de contrainte d'intégrité lors de la création du serveur"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        except Exception as e:
-            logger.error(f"[servers_instance_create] Unexpected error name={name} error={str(e)}")
+        except Exception:
+            logger.error(f"[servers_instance_create] Unexpected error name={name} error={traceback.format_exc()}")
             return Response({"error": "Erreur lors de la création du serveur"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def retrieve(self, request, *args, **kwargs):

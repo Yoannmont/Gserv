@@ -1,5 +1,6 @@
 import logging
 import os
+import traceback
 
 import docker
 from django.conf import settings
@@ -58,8 +59,8 @@ class ServerManager:
             logger.info(f"[server_manager] Server {server_instance.name} created with container_id: {container_id}")
             return container_id
 
-        except Exception as e:
-            logger.error("[server_manager] Error during server creation: %r", e)
+        except Exception:
+            logger.error("[server_manager] Error during server creation: %r", traceback.format_exc())
             raise
 
     def start_server(self, server_instance) -> bool:
