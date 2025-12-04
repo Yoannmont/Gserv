@@ -46,7 +46,7 @@ class TestServerInstanceViewSet:
         assert response.status_code == status.HTTP_200_OK
         assert len(response.data["results"]) == 5
 
-    def test_create_server(self, authenticated_client, user, patched_docker_service, fake_container):
+    def test_create_server(self, authenticated_client, user, patched_docker_service, fake_container, prepare_servers_data_path):
         game = GameFactory()
         version = GameVersionFactory(game=game)
 
@@ -142,7 +142,9 @@ class TestServerInstanceViewSet:
 
         assert not ServerInstance.objects.filter(id=server.id).exists()
 
-    def test_update_server_full(self, authenticated_client, user, patched_docker_service, fake_container):
+    def test_update_server_full(
+        self, authenticated_client, user, patched_docker_service, fake_container, prepare_servers_data_path
+    ):
         game = GameFactory()
         version = GameVersionFactory(game=game)
 

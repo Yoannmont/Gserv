@@ -229,7 +229,7 @@ class Dev(Configuration):
 
     # region Docker --------------------------------------------------------------------------------------
     DOCKER_HOST = values.Value(environ_prefix=None)
-    SERVERS_DATA_PATH = values.Value()
+    SERVERS_DATA_PATH = values.PathValue(environ_required=True)
     # endregion
 
     # region Simple JWT --------------------------------------------------------------------------------------
@@ -268,9 +268,11 @@ class Test(Dev):
             "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
         }
     }
+
+    SERVERS_DATA_PATH = BASE_DIR / "test_servers_data"
+
     CELERY_TASK_ALWAYS_EAGER = True
     CELERY_TASK_EAGER_PROPAGATES = True
-    BROKER_URL = "memory://"
     CELERY_BROKER_URL = "memory://"
     CELERY_RESULT_BACKEND = "cache"
     CELERY_CACHE_BACKEND = "memory"

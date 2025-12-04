@@ -1,7 +1,9 @@
 import os
+import shutil
 from unittest.mock import patch
 
 import pytest
+from django.conf import settings
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -116,3 +118,13 @@ def block_redis():
     with patch("redis.client.Redis.execute_command") as mock:
         mock.side_effect = AssertionError("Redis called during tests!")
         yield
+
+
+@pytest.fixture
+def prepare_servers_data_path():
+    """
+    Prepare the servers data path for tests
+    """
+    os.makedirs(settings.SERVERS_DATA_PATH, exist_ok=True)
+    yield
+    shutil.rmtree(settings.SERVERS_DATA_PATH, ignore_errors=True)
