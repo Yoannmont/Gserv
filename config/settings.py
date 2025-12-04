@@ -268,3 +268,11 @@ class Test(Dev):
             "BACKEND": "django.core.cache.backends.dummy.DummyCache",
         }
     }
+    CELERY_TASK_ALWAYS_EAGER = True
+    CELERY_TASK_EAGER_PROPAGATES = True
+    BROKER_URL = "memory://"
+    CELERY_BROKER_URL = "memory://"
+    CELERY_RESULT_BACKEND = "cache"
+    CELERY_CACHE_BACKEND = "memory"
+
+

@@ -109,3 +109,10 @@ def fake_container(docker_client_mockup):
         nano_cpus=2000000000,
     )
     return container
+
+
+@pytest.fixture(autouse=True)
+def block_redis():
+    with patch("redis.client.Redis.execute_command") as mock:
+        mock.side_effect = AssertionError("Redis called during tests!")
+        yield
