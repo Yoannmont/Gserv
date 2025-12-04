@@ -274,5 +274,3 @@ class Test(Dev):
     CELERY_BROKER_URL = "memory://"
     CELERY_RESULT_BACKEND = "cache"
     CELERY_CACHE_BACKEND = "memory"
-
-
