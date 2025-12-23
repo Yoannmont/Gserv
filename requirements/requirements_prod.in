@@ -1,6 +1,6 @@
-django==5.2.8
+django==6.0
 
-django-admin-interface==0.31.1
+django-admin-interface==0.32.0
 django-configurations[cache,database,email,search]==2.5.1
 django-cors-headers==4.9.0
 django-filter==25.2
@@ -10,17 +10,21 @@ drf-yasg==1.21.11
 
 channels==4.3.2
 channels-redis==4.3.0
-daphne==4.1.2
+daphne==4.2.1
 
-uvicorn[standard]==0.38.0
+uvicorn[standard]==0.40.0
 python-dotenv==1.2.1
 
 redis==7.1.0
 
 docker==7.1.0
 
-celery==5.5.3
+celery==5.6.0
 
 Pillow==12.0.0
 
-ipython==9.7.0
+ipython==9.8.0
+
+python-json-logger==4.0.0
+
+django-request-id==1.0.0

@@ -13,8 +13,10 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 import os
 from datetime import timedelta
 from pathlib import Path
+from urllib.parse import urlparse
 
 from configurations import Configuration, values
+from pythonjsonlogger import json
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -26,12 +28,17 @@ os.makedirs(LOG_DIR, exist_ok=True)
 class Dev(Configuration):
     @classmethod
     def post_setup(cls):
-        for var_name in ["DOCKER_HOST", "CELERY_BROKER_URL", "CORS_ALLOWED_ORIGINS", "SERVERS_DATA_PATH"]:
+        for var_name in [
+            "DOCKER_HOST",
+            "CELERY_BROKER_URL",
+            "CORS_ALLOWED_ORIGINS",
+            "SERVERS_DATA_PATH",
+        ]:
             assert getattr(cls, var_name), f"{var_name} not defined"
 
     # region Basic Django --------------------------------------------------------------------------------------
     DOTENV = BASE_DIR / ".env"
-    SECRET_KEY = "django-insecure-sqz8f9syr4_893ti*bv7e@))iu_878bke26*!4i_1k5=eq$^ly"
+    SECRET_KEY = str(values.SecretValue())
     DEBUG = True
     ALLOWED_HOSTS = ["*", "localhost", "127.0.0.1"]
 
@@ -57,9 +64,11 @@ class Dev(Configuration):
         "corsheaders",
         "drf_yasg",
         "docker_manager",
+        "request_id",
     ]
 
     MIDDLEWARE = [
+        "request_id.middleware.RequestIdMiddleware",
         "django.middleware.security.SecurityMiddleware",
         "corsheaders.middleware.CorsMiddleware",
         "django.contrib.sessions.middleware.SessionMiddleware",
@@ -134,58 +143,92 @@ class Dev(Configuration):
 
     CACHES = values.CacheURLValue()
 
+    REQUEST_ID_HEADER = None
+
     LOGGING = {
         "version": 1,
         "disable_existing_loggers": False,
+        "filters": {
+            "request_id": {
+                "()": "request_id.logging.RequestIdFilter",
+            },
+        },
         "formatters": {
             "verbose": {
-                "format": "[%(levelname)s] - %(asctime)s - %(filename)s:%(lineno)d - %(message)s",
+                "format": "[%(levelname)s] - %(asctime)s - %(request_id)s - %(filename)s:%(lineno)d - %(message)s",
                 "datefmt": "%Y-%m-%d %H:%M:%S",
+            },
+            "json": {
+                "()": json.JsonFormatter,
+                "format": "%(levelname)s %(asctime)s %(name)s %(request_id)s %(message)s",
             },
         },
         "handlers": {
             "console": {
                 "class": "logging.StreamHandler",
                 "formatter": "verbose",
+                "filters": ["request_id"],
             },
-            "file": {
+            "django": {
                 "class": "logging.FileHandler",
-                "filename": LOG_DIR / "django.log",
+                "filename": LOG_DIR / "raw" / "django.log",
+                "filters": ["request_id"],
                 "formatter": "verbose",
             },
             "celery_worker": {
                 "class": "logging.FileHandler",
-                "filename": LOG_DIR / "celery_worker.log",
+                "filename": LOG_DIR / "raw" / "celery_worker.log",
+                "filters": ["request_id"],
                 "formatter": "verbose",
             },
             "celery_beat": {
                 "class": "logging.FileHandler",
-                "filename": LOG_DIR / "celery_beat.log",
+                "filename": LOG_DIR / "raw" / "celery_beat.log",
+                "filters": ["request_id"],
                 "formatter": "verbose",
+            },
+            "json_django": {
+                "class": "logging.FileHandler",
+                "filename": LOG_DIR / "json" / "django.log",
+                "filters": ["request_id"],
+                "formatter": "json",
+            },
+            "json_celery_worker": {
+                "class": "logging.FileHandler",
+                "filename": LOG_DIR / "json" / "celery_worker.log",
+                "filters": ["request_id"],
+                "formatter": "json",
+            },
+            "json_celery_beat": {
+                "class": "logging.FileHandler",
+                "filename": LOG_DIR / "json" / "celery_beat.log",
+                "filters": ["request_id"],
+                "formatter": "json",
             },
         },
         "root": {
-            "handlers": ["console", "file"],
+            "handlers": ["console", "django", "json_django"],
             "level": "INFO",
         },
         "loggers": {
             "django": {
-                "handlers": ["console", "file"],
+                "handlers": ["console", "django", "json_django"],
                 "level": os.getenv("DJANGO_LOG_LEVEL", "INFO"),
                 "propagate": False,
             },
             "celery_worker": {
-                "handlers": ["console", "file", "celery_worker"],
+                "handlers": ["console", "celery_worker", "json_celery_worker"],
                 "level": os.getenv("CELERY_WORKER_LOG_LEVEL", "INFO"),
                 "propagate": False,
             },
             "celery_beat": {
-                "handlers": ["console", "file", "celery_beat"],
+                "handlers": ["console", "django", "json_celery_beat"],
                 "level": os.getenv("CELERY_LOG_LEVEL", "INFO"),
                 "propagate": False,
             },
         },
     }
+
     # endregion
 
     # region REST Framework --------------------------------------------------------------------------------------
@@ -251,6 +294,244 @@ class Dev(Configuration):
         "AUTH_TOKEN_CLASSES": ("rest_framework_simplejwt.tokens.AccessToken",),
         "TOKEN_TYPE_CLAIM": "token_type",
         "JTI_CLAIM": "jti",
+    }
+    # endregion
+
+
+class Prod(Dev):
+    # region Basic Django --------------------------------------------------------------------------------------
+    DOTENV = BASE_DIR / ".env.prod"
+    SECRET_KEY = values.Value(environ_required=True)
+    DEBUG = False
+    ALLOWED_HOSTS = values.ListValue(environ_required=True)
+
+    SECURE_SSL_REDIRECT = values.BooleanValue(default=True)
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = "DENY"
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = "Lax"
+    CSRF_COOKIE_HTTPONLY = True
+    CSRF_COOKIE_SAMESITE = "Lax"
+    SESSION_SAVE_EVERY_REQUEST = True
+    SESSION_COOKIE_AGE = 3600
+
+    # endregion
+
+    # region Channels --------------------------------------------------------------------------------------
+    CHANNEL_LAYERS_HOSTS_URL = values.Value(environ_required=True)
+
+    @classmethod
+    def post_setup(cls):
+        super().post_setup()
+        assert not cls.DEBUG
+        assert cls.SECRET_KEY is not None
+        assert cls.ALLOWED_HOSTS and "*" not in cls.ALLOWED_HOSTS
+        assert cls.CORS_ALLOWED_ORIGINS
+
+        redis_url = cls.CHANNEL_LAYERS_HOSTS_URL
+        parsed = urlparse(redis_url)
+
+        password = parsed.password if parsed.password else None
+        host = parsed.hostname or "localhost"
+        port = parsed.port or 6379
+
+        cls.CHANNEL_LAYERS = {
+            "default": {
+                "BACKEND": "channels_redis.core.RedisChannelLayer",
+                "CONFIG": {
+                    "hosts": [(host, port)],
+                },
+            },
+        }
+        if password:
+            cls.CHANNEL_LAYERS["default"]["CONFIG"]["password"] = password
+
+    # endregion
+
+    # region REST Framework --------------------------------------------------------------------------------------
+    REST_FRAMEWORK = {
+        "DEFAULT_AUTHENTICATION_CLASSES": [
+            "rest_framework_simplejwt.authentication.JWTAuthentication",
+            "rest_framework.authentication.SessionAuthentication",
+        ],
+        "DEFAULT_PERMISSION_CLASSES": [
+            "rest_framework.permissions.IsAuthenticated",
+        ],
+        "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+        "PAGE_SIZE": 20,
+        "DEFAULT_FILTER_BACKENDS": [
+            "django_filters.rest_framework.DjangoFilterBackend",
+            "rest_framework.filters.SearchFilter",
+            "rest_framework.filters.OrderingFilter",
+        ],
+        "DATETIME_FORMAT": "%Y-%m-%d %H:%M:%S",
+        "DEFAULT_THROTTLE_CLASSES": [
+            "rest_framework.throttling.AnonRateThrottle",
+            "rest_framework.throttling.UserRateThrottle",
+        ],
+        "DEFAULT_THROTTLE_RATES": {
+            "anon": "10/hour",
+            "user": "200/hour",
+        },
+    }
+    # endregion
+
+    # region CORS --------------------------------------------------------------------------------------
+    CORS_ALLOWED_ORIGINS = values.ListValue(environ_required=True)
+    CORS_ALLOW_CREDENTIALS = True
+    CORS_ALLOW_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+    CORS_ALLOW_HEADERS = [
+        "accept",
+        "accept-encoding",
+        "authorization",
+        "content-type",
+        "dnt",
+        "origin",
+        "user-agent",
+        "x-csrftoken",
+        "x-requested-with",
+    ]
+    # endregion
+
+    # region Simple JWT --------------------------------------------------------------------------------------
+    SIMPLE_JWT = {
+        "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
+        "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
+        "ROTATE_REFRESH_TOKENS": True,
+        "BLACKLIST_AFTER_ROTATION": True,
+        "UPDATE_LAST_LOGIN": True,
+        "ALGORITHM": "HS256",
+        "SIGNING_KEY": SECRET_KEY,
+        "VERIFYING_KEY": None,
+        "AUDIENCE": None,
+        "ISSUER": None,
+        "AUTH_HEADER_TYPES": ("Bearer",),
+        "AUTH_HEADER_NAME": "HTTP_AUTHORIZATION",
+        "USER_ID_FIELD": "id",
+        "USER_ID_CLAIM": "user_id",
+        "AUTH_TOKEN_CLASSES": ("rest_framework_simplejwt.tokens.AccessToken",),
+        "TOKEN_TYPE_CLAIM": "token_type",
+        "JTI_CLAIM": "jti",
+    }
+    # endregion
+
+    # region Logging --------------------------------------------------------------------------------------
+    LOGGING = {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "filters": {
+            "request_id": {
+                "()": "request_id.logging.RequestIdFilter",
+            },
+            "require_debug_false": {
+                "()": "django.utils.log.RequireDebugFalse",
+            },
+        },
+        "formatters": {
+            "verbose": {
+                "format": "[%(levelname)s] - %(asctime)s - %(request_id)s - %(filename)s:%(lineno)d - %(message)s",
+                "datefmt": "%Y-%m-%d %H:%M:%S",
+            },
+            "promtail": {
+                "()": "pythonjson.json.JsonFormatter",
+                "format": "%(levelname)s %(asctime)s %(name)s %(request_id)s %(message)s",
+            },
+        },
+        "handlers": {
+            "console": {
+                "class": "logging.StreamHandler",
+                "formatter": "verbose",
+                "filters": ["request_id"],
+            },
+            "django": {
+                "class": "logging.handlers.RotatingFileHandler",
+                "filename": LOG_DIR / "raw" / "django.log",
+                "maxBytes": 10 * 1024 * 1024,
+                "backupCount": 5,
+                "filters": ["request_id"],
+                "formatter": "verbose",
+            },
+            "celery_worker": {
+                "class": "logging.handlers.RotatingFileHandler",
+                "filename": LOG_DIR / "raw" / "celery_worker.log",
+                "maxBytes": 10 * 1024 * 1024,
+                "backupCount": 5,
+                "filters": ["request_id"],
+                "formatter": "verbose",
+            },
+            "celery_beat": {
+                "class": "logging.handlers.RotatingFileHandler",
+                "filename": LOG_DIR / "raw" / "celery_beat.log",
+                "maxBytes": 10 * 1024 * 1024,
+                "backupCount": 5,
+                "filters": ["request_id"],
+                "formatter": "verbose",
+            },
+            "mail_admins": {
+                "level": "ERROR",
+                "class": "django.utils.log.AdminEmailHandler",
+                "filters": ["require_debug_false"],
+                "formatter": "verbose",
+            },
+            "json_django": {
+                "class": "logging.handlers.RotatingFileHandler",
+                "filename": LOG_DIR / "json" / "django.log",
+                "maxBytes": 10 * 1024 * 1024,
+                "backupCount": 5,
+                "filters": ["request_id"],
+                "formatter": "promtail",
+            },
+            "json_celery_worker": {
+                "class": "logging.handlers.RotatingFileHandler",
+                "filename": LOG_DIR / "json" / "celery_worker.log",
+                "maxBytes": 10 * 1024 * 1024,
+                "backupCount": 5,
+                "filters": ["request_id"],
+                "formatter": "promtail",
+            },
+            "json_celery_beat": {
+                "class": "logging.handlers.RotatingFileHandler",
+                "filename": LOG_DIR / "json" / "celery_beat.log",
+                "maxBytes": 10 * 1024 * 1024,
+                "backupCount": 5,
+                "filters": ["request_id"],
+                "formatter": "promtail",
+            },
+        },
+        "root": {
+            "handlers": ["console", "django", "json_django"],
+            "level": "INFO",
+        },
+        "loggers": {
+            "django": {
+                "handlers": ["console", "django", "json_django"],
+                "level": os.getenv("DJANGO_LOG_LEVEL", "INFO"),
+                "propagate": False,
+            },
+            "django.security": {
+                "handlers": ["console", "django", "json_django", "mail_admins"],
+                "level": "WARNING",
+                "propagate": False,
+            },
+            "celery_worker": {
+                "handlers": ["console", "celery_worker", "json_celery_worker"],
+                "level": os.getenv("CELERY_WORKER_LOG_LEVEL", "INFO"),
+                "propagate": False,
+            },
+            "celery_beat": {
+                "handlers": ["console", "celery_beat", "json_celery_beat"],
+                "level": os.getenv("CELERY_LOG_LEVEL", "INFO"),
+                "propagate": False,
+            },
+        },
     }
     # endregion
 

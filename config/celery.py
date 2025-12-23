@@ -1,12 +1,13 @@
 import os
 
-from celery import Celery
+from celery import Celery, signals
 from celery.schedules import crontab
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 os.environ.setdefault("DJANGO_CONFIGURATION", "Dev")
 
 from configurations import importer
+from request_id import get_current_request_id, local
 
 importer.install()
 app = Celery("game_server_manager")
@@ -20,7 +21,7 @@ app.autodiscover_tasks()
 app.conf.beat_schedule = {
     "collect-server-metrics": {
         "task": "docker_manager.tasks.collect_server_metrics",
-        "schedule": 30.0,
+        "schedule": 300.0,
     },
     "sync-container-status": {
         "task": "docker_manager.tasks.sync_container_status",
@@ -44,3 +45,19 @@ app.conf.beat_schedule = {
 @app.task(bind=True)
 def debug_task(self):
     print(f"Request: {self.request!r}")
+
+
+# Add request_id to the headers of the task
+@signals.before_task_publish.connect
+def add_request_id(headers=None, **kwargs):
+    request_id = get_current_request_id()
+    if request_id:
+        headers["request_id"] = request_id
+
+
+# Add request_id to the logger
+@signals.task_prerun.connect
+def load_request_id(task=None, **kwargs):
+    request_id = task.request.headers.get("request_id") if task.request.headers else None
+    if request_id:
+        local.request_id = request_id

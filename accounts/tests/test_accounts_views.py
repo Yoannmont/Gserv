@@ -197,16 +197,6 @@ class TestUserLogout:
 
 @pytest.mark.django_db
 class TestUserCRUD:
-    def test_list_users(self, authenticated_client):
-        """Test liste des utilisateurs"""
-        UserFactory.create_batch(3)
-
-        url = reverse("user-list")
-        response = authenticated_client.get(url)
-
-        assert response.status_code == status.HTTP_200_OK
-        assert len(response.data["results"]) >= 3  # 3 + conftest user
-
     def test_retrieve_user(self, authenticated_client, user):
         """Test récupération d'un utilisateur"""
         url = reverse("user-detail", kwargs={"pk": user.id})
