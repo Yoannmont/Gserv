@@ -22,7 +22,8 @@ jobs:
 
     - name: Install dependencies, ruff and test
       run: |
-        mkdir logs
+        mkdir -p logs/raw
+        mkdir -p logs/json
         pip install uv
         uv venv
         source .venv/bin/activate
