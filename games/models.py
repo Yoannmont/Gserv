@@ -9,7 +9,18 @@ class Game(models.Model):
     slug = models.SlugField(unique=True, verbose_name="Slug")
     description = models.TextField(verbose_name="Description")
     icon = models.ImageField(upload_to="games/icons/", null=True, blank=True, verbose_name="Icône")
-    docker_image = models.CharField(max_length=255, verbose_name="Image Docker", help_text="Ex: itzg/minecraft-server")
+    docker_image = models.CharField(
+        max_length=255,
+        verbose_name="Image Docker",
+        help_text="Ex: itzg/minecraft-server",
+    )
+    health_check_command = models.CharField(
+        max_length=500,
+        blank=True,
+        null=True,
+        verbose_name="Commande health check",
+        help_text=("Commande à exécuter pour vérifier l'état du serveur. Si vide, utilise le statut du container Docker."),
+    )
     default_port = models.IntegerField(verbose_name="Port par défaut")
     additional_ports = models.JSONField(
         default=list,
@@ -75,10 +86,18 @@ class GameVersion(models.Model):
 
 
 class GameConfiguration(models.Model):
-    game = models.ForeignKey(Game, on_delete=models.CASCADE, related_name="configurations", verbose_name="Jeu")
+    game = models.ForeignKey(
+        Game,
+        on_delete=models.CASCADE,
+        related_name="configurations",
+        verbose_name="Jeu",
+    )
     name = models.CharField(max_length=100, verbose_name="Nom de la configuration")
     description = models.TextField(blank=True, verbose_name="Description")
-    config_data = models.JSONField(verbose_name="Données de configuration", help_text="Configuration au format JSON")
+    config_data = models.JSONField(
+        verbose_name="Données de configuration",
+        help_text="Configuration au format JSON",
+    )
     is_default = models.BooleanField(default=False, verbose_name="Configuration par défaut")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

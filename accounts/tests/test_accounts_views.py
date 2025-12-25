@@ -133,7 +133,6 @@ class TestPasswordChange:
         data = {
             "old_password": "testpass123",
             "new_password": "newpass123",
-            "new_password_confirm": "newpass123",
         }
 
         response = authenticated_client.post(url, data, format="json")

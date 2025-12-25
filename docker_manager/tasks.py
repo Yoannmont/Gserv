@@ -4,8 +4,6 @@ from celery import shared_task
 from django.db import transaction
 from django.utils import timezone
 
-from servers.models import ServerStatus
-
 beat_logger = logging.getLogger("celery_beat")
 worker_logger = logging.getLogger("celery_worker")
 
@@ -365,35 +363,32 @@ def cleanup_old_status_history():
 @shared_task
 def sync_container_status():
     """
-    Synchronize server status with Docker
+    Synchronize server status with Docker using health check command or container status
     """
     try:
-        from docker_manager.services.docker_service import get_docker_service
-        from servers.models import ServerInstance
+        from docker_manager.services.server_manager import get_server_manager
+        from servers.models import ServerInstance, ServerStatus
 
-        docker_service = get_docker_service()
+        manager = get_server_manager()
         servers = ServerInstance.objects.exclude(container_id__isnull=True)
 
         beat_logger.info(f"[docker_manager] Synchronizing status for {servers.count()} servers")
 
         for server in servers:
             try:
-                docker_status = docker_service.get_container_status(server.container_id)
-
-                # Docker -> Django status mapping
-                status_map = {
-                    "running": ServerInstance.RUNNING,
-                    "exited": ServerInstance.STOPPED,
-                    "dead": ServerInstance.ERROR,
-                    "not_found": ServerInstance.ERROR,
-                }
-
-                new_status = status_map.get(docker_status, ServerInstance.ERROR)
+                # Utiliser la méthode check_server_health qui gère le health check ou le fallback
+                new_status = manager.check_server_health(server)
 
                 if server.status != new_status:
                     with transaction.atomic():
                         server.status = new_status
-                        ServerStatus.objects.create(server=server, status=new_status, message=f"Transition vers {new_status}")
+                        ServerStatus.objects.create(
+                            server=server,
+                            status=new_status,
+                            message=f"Transition vers {new_status} (via health check)"
+                            if server.game.health_check_command
+                            else f"Transition vers {new_status} (via statut container)",
+                        )
                         server.save(update_fields=["status"])
                         beat_logger.info(f"[docker_manager] Status synchronized for {server.name}: {new_status}")
 

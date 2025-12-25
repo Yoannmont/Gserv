@@ -353,6 +353,29 @@ class DockerService:
             logger.error("[docker_service] Error during command execution: %r", e)
             raise DockerServiceError(f"[docker_service] Error during command execution: {e}")
 
+    def execute_command_with_exit_code(self, container_id: str, command: str) -> tuple[int, str]:
+        """
+        Execute a command in a container and return exit code and output
+
+        Args:
+            container_id: Container ID
+            command: Command to execute
+
+        Returns:
+            Tuple of (exit_code, output)
+        """
+        try:
+            container = self.client.containers.get(container_id)
+            result = container.exec_run(command)
+            exit_code = result.exit_code
+            output = result.output.decode("utf-8")
+            return exit_code, output
+        except docker.errors.NotFound:
+            raise DockerServiceError(f"[docker_service] Container {container_id} not found")
+        except docker.errors.APIError as e:
+            logger.error("[docker_service] Error during command execution: %r", e)
+            raise DockerServiceError(f"[docker_service] Error during command execution: {e}")
+
     def update_container(self, container_id: str, image: str, preserve_data: bool = True) -> str:
         """
         Update a container to a new version

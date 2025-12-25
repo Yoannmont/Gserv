@@ -315,6 +315,70 @@ class ServerManager:
             logger.error("[server_manager] Error during command execution: %r", e)
             raise
 
+    def check_server_health(self, server_instance) -> str:
+        """
+        Check server health using health check command or container status
+
+        Args:
+            server_instance: ServerInstance instance
+
+        Returns:
+            Django status (RUNNING, ERROR, STOPPED, etc.)
+        """
+        try:
+            if not server_instance.container_id:
+                return ServerInstance.ERROR
+
+            docker_status = self.docker_service.get_container_status(server_instance.container_id)
+
+            # Mapping Docker -> Django status
+            status_map = {
+                "running": ServerInstance.RUNNING,
+                "exited": ServerInstance.STOPPED,
+                "dead": ServerInstance.ERROR,
+                "not_found": ServerInstance.ERROR,
+                "created": ServerInstance.CREATED,
+                "restarting": ServerInstance.STARTING,
+                "paused": ServerInstance.STOPPED,
+            }
+
+            if docker_status != "running":
+                return status_map.get(docker_status, ServerInstance.ERROR)
+
+            game = server_instance.game
+
+            if game.health_check_command:
+                try:
+                    exit_code, output = self.docker_service.execute_command_with_exit_code(
+                        server_instance.container_id, game.health_check_command
+                    )
+
+                    if exit_code == 0:
+                        logger.debug(f"[server_manager] Health check passed for {server_instance.name}: {output[:100]}")
+                        return ServerInstance.RUNNING
+                    else:
+                        logger.warning(
+                            f"[server_manager] Health check failed for {server_instance.name} "
+                            f"(exit_code={exit_code}): {output[:100]}"
+                        )
+                        return ServerInstance.ERROR
+
+                except DockerServiceError as e:
+                    logger.error(
+                        f"[server_manager] Health check command failed for {server_instance.name}: %r",
+                        e,
+                    )
+                    return ServerInstance.ERROR
+
+            return ServerInstance.RUNNING
+
+        except Exception as e:
+            logger.error(
+                f"[server_manager] Error during health check for {server_instance.name}: %r",
+                e,
+            )
+            return ServerInstance.ERROR
+
     # Private methods
 
     def _create_server_directories(self, server_instance) -> str:
