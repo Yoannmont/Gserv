@@ -36,7 +36,7 @@ class ServerConfigurationFactory(DjangoModelFactory):
     server = factory.SubFactory(ServerInstanceFactory)
     config_data = factory.LazyFunction(lambda: {"difficulty": "normal"})
     environment_variables = factory.LazyFunction(lambda: {"EULA": "TRUE"})
-    docker_volumes = factory.LazyFunction(lambda: ["/data"])
+    docker_volumes = factory.LazyFunction(lambda: {"data": {"bind": "/data", "mode": "rw"}})
     memory_limit = "2g"
     cpu_limit = 2.0
 

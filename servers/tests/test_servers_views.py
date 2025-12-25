@@ -5,7 +5,12 @@ from django.urls import reverse
 from rest_framework import status
 
 from accounts.tests.accounts_factories import UserFactory
-from docker_manager.tasks import restart_server_task, start_server_task, stop_server_task, update_server_task
+from docker_manager.tasks import (
+    restart_server_task,
+    start_server_task,
+    stop_server_task,
+    update_server_task,
+)
 from games.tests.games_factories import GameFactory, GameVersionFactory
 from servers.models import ServerInstance
 from servers.tests.servers_factories import (
@@ -46,7 +51,14 @@ class TestServerInstanceViewSet:
         assert response.status_code == status.HTTP_200_OK
         assert len(response.data["results"]) == 5
 
-    def test_create_server(self, authenticated_client, user, patched_docker_service, fake_container, prepare_servers_data_path):
+    def test_create_server(
+        self,
+        authenticated_client,
+        user,
+        patched_docker_service,
+        fake_container,
+        prepare_servers_data_path,
+    ):
         game = GameFactory()
         version = GameVersionFactory(game=game)
 
@@ -82,7 +94,7 @@ class TestServerInstanceViewSet:
             "configuration": {
                 "config_data": {},
                 "environment_variables": {},
-                "docker_volumes": [],
+                "docker_volumes": {},
                 "memory_limit": "2g",
                 "cpu_limit": 2.0,
                 "custom_startup_command": "",
@@ -143,7 +155,12 @@ class TestServerInstanceViewSet:
         assert not ServerInstance.objects.filter(id=server.id).exists()
 
     def test_update_server_full(
-        self, authenticated_client, user, patched_docker_service, fake_container, prepare_servers_data_path
+        self,
+        authenticated_client,
+        user,
+        patched_docker_service,
+        fake_container,
+        prepare_servers_data_path,
     ):
         game = GameFactory()
         version = GameVersionFactory(game=game)
@@ -226,7 +243,8 @@ class TestServerActions:
 
         url = reverse("server-start", kwargs={"pk": server.id})
         with patch(
-            "docker_manager.tasks.start_server_task.delay", lambda server_id: start_server_task.apply(args=[server_id, user.id])
+            "docker_manager.tasks.start_server_task.delay",
+            lambda server_id: start_server_task.apply(args=[server_id, user.id]),
         ):
             response = authenticated_client.post(url)
 
@@ -239,7 +257,10 @@ class TestServerActions:
 
         url = reverse("server-start", kwargs={"pk": server.id})
 
-        with patch("docker_manager.tasks.start_server_task.delay", lambda server_id: start_server_task.apply(args=[server_id])):
+        with patch(
+            "docker_manager.tasks.start_server_task.delay",
+            lambda server_id: start_server_task.apply(args=[server_id]),
+        ):
             authenticated_client.post(url)
             response = authenticated_client.post(url)
 
@@ -249,7 +270,10 @@ class TestServerActions:
         server = ServerInstanceFactory(owner=user, status=ServerInstance.RUNNING, container_id=fake_container.id)
 
         url = reverse("server-stop", kwargs={"pk": server.id})
-        with patch("docker_manager.tasks.stop_server_task.delay", lambda server_id: stop_server_task.apply(args=[server_id])):
+        with patch(
+            "docker_manager.tasks.stop_server_task.delay",
+            lambda server_id: stop_server_task.apply(args=[server_id]),
+        ):
             response = authenticated_client.post(url)
 
         assert response.status_code == status.HTTP_200_OK
@@ -260,7 +284,10 @@ class TestServerActions:
         server = ServerInstanceFactory(owner=user, status=ServerInstance.STOPPED, container_id=fake_container.id)
 
         url = reverse("server-stop", kwargs={"pk": server.id})
-        with patch("docker_manager.tasks.stop_server_task.delay", lambda server_id: stop_server_task.apply(args=[server_id])):
+        with patch(
+            "docker_manager.tasks.stop_server_task.delay",
+            lambda server_id: stop_server_task.apply(args=[server_id]),
+        ):
             authenticated_client.post(url)
             response = authenticated_client.post(url)
 
@@ -271,7 +298,8 @@ class TestServerActions:
 
         url = reverse("server-restart", kwargs={"pk": server.id})
         with patch(
-            "docker_manager.tasks.restart_server_task.delay", lambda server_id: restart_server_task.apply(args=[server_id])
+            "docker_manager.tasks.restart_server_task.delay",
+            lambda server_id: restart_server_task.apply(args=[server_id]),
         ):
             response = authenticated_client.post(url)
 
@@ -312,7 +340,10 @@ class TestServerActions:
         first_id = fake_container.id
         url = reverse("server-update-server", kwargs={"pk": server.id})
         with (
-            patch("docker_manager.tasks.update_server_task.delay", lambda server_id: update_server_task.apply(args=[server_id])),
+            patch(
+                "docker_manager.tasks.update_server_task.delay",
+                lambda server_id: update_server_task.apply(args=[server_id]),
+            ),
         ):
             response = authenticated_client.post(url, data={"force": True}, format="json")
 
@@ -401,7 +432,12 @@ class TestPermissions:
         version = GameVersionFactory(game=game)
 
         url = reverse("server-list")
-        data = {"name": "Test", "game": game.id, "game_version": version.id, "port": 25565}
+        data = {
+            "name": "Test",
+            "game": game.id,
+            "game_version": version.id,
+            "port": 25565,
+        }
 
         response = api_client.post(url, data, format="json")
 

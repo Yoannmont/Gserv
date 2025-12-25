@@ -297,6 +297,11 @@ class Dev(Configuration):
     }
     # endregion
 
+    # region Server --------------------------------------------------------------------------------------
+    SERVER_STOP_TIMEOUT = values.IntegerValue(default=25)
+    SERVER_RESTART_TIMEOUT = values.IntegerValue(default=25)
+    # endregion
+
 
 class Prod(Dev):
     # region Basic Django --------------------------------------------------------------------------------------
@@ -378,8 +383,8 @@ class Prod(Dev):
             "rest_framework.throttling.UserRateThrottle",
         ],
         "DEFAULT_THROTTLE_RATES": {
-            "anon": "10/hour",
-            "user": "200/hour",
+            "anon": "0/hour",
+            "user": "600/hour",
         },
     }
     # endregion

@@ -2,6 +2,7 @@ import logging
 from typing import Any
 
 import docker
+from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
@@ -140,7 +141,7 @@ class DockerService:
             logger.error("[docker_service] Error during container start: %r", e)
             raise DockerServiceError(f"[docker_service] Error during container start: {e}")
 
-    def stop_container(self, container_id: str, timeout: int = 30) -> bool:
+    def stop_container(self, container_id: str, timeout: int = settings.SERVER_STOP_TIMEOUT) -> bool:
         """
         Stop a container
 
@@ -163,7 +164,7 @@ class DockerService:
             logger.error("[docker_service] Error during container stop: %r", e)
             raise DockerServiceError(f"[docker_service] Error during container stop: {e}")
 
-    def restart_container(self, container_id: str, timeout: int = 30) -> bool:
+    def restart_container(self, container_id: str, timeout: int = settings.SERVER_RESTART_TIMEOUT) -> bool:
         """
         Restart a container
 
@@ -260,8 +261,8 @@ class DockerService:
                 "memory_usage": memory_usage / (1024 * 1024),  # In MB
                 "memory_limit": memory_limit / (1024 * 1024),  # In MB
                 "memory_percent": round(memory_percent, 2),
-                "network_rx": stats["networks"]["eth0"]["rx_bytes"] if "networks" in stats else 0,
-                "network_tx": stats["networks"]["eth0"]["tx_bytes"] if "networks" in stats else 0,
+                "network_rx": (stats["networks"]["eth0"]["rx_bytes"] if "networks" in stats else 0),
+                "network_tx": (stats["networks"]["eth0"]["tx_bytes"] if "networks" in stats else 0),
             }
         except docker.errors.NotFound:
             raise DockerServiceError(f"Conteneur {container_id} introuvable")

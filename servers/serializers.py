@@ -24,8 +24,8 @@ class ServerConfigurationSerializer(serializers.ModelSerializer):
     def validate_docker_volumes(self, value):
         if not isinstance(value, dict):
             raise serializers.ValidationError("Docker volumes must be a dict")
-        if "data" not in value:
-            raise serializers.ValidationError("At least data folder need mapping")
+        # if "data" not in value:
+        #     raise serializers.ValidationError("At least data folder need mapping")
         return value
 
 
@@ -152,7 +152,7 @@ class ServerInstanceDetailSerializer(serializers.ModelSerializer):
         default_configuration = {
             "config_data": {},
             "environment_variables": {},
-            "docker_volumes": [],
+            "docker_volumes": {},
             "memory_limit": "2g",
             "cpu_limit": 2.0,
             "custom_startup_command": "",
@@ -216,7 +216,7 @@ class ServerInstanceCreateSerializer(serializers.ModelSerializer):
         default_configuration = {
             "config_data": {},
             "environment_variables": {},
-            "docker_volumes": [],
+            "docker_volumes": {},
             "memory_limit": "2g",
             "cpu_limit": 2.0,
             "custom_startup_command": "",

@@ -6,7 +6,10 @@ import docker
 from django.conf import settings
 from django.utils import timezone
 
-from docker_manager.services.docker_service import DockerServiceError, get_docker_service
+from docker_manager.services.docker_service import (
+    DockerServiceError,
+    get_docker_service,
+)
 from servers.models import ServerInstance
 
 logger = logging.getLogger(__name__)
@@ -60,7 +63,10 @@ class ServerManager:
             return container_id
 
         except Exception:
-            logger.error("[server_manager] Error during server creation: %r", traceback.format_exc())
+            logger.error(
+                "[server_manager] Error during server creation: %r",
+                traceback.format_exc(),
+            )
             raise
 
     def start_server(self, server_instance) -> bool:
@@ -95,7 +101,7 @@ class ServerManager:
             server_instance.save(update_fields=["status"])
             raise
 
-    def stop_server(self, server_instance, timeout: int = 30) -> bool:
+    def stop_server(self, server_instance, timeout: int = settings.SERVER_STOP_TIMEOUT) -> bool:
         """
         Stop a server
 
@@ -124,7 +130,7 @@ class ServerManager:
             logger.error("[server_manager] Docker error during server stop: %r", e)
             raise
 
-    def restart_server(self, server_instance, timeout: int = 30) -> bool:
+    def restart_server(self, server_instance, timeout: int = settings.SERVER_RESTART_TIMEOUT) -> bool:
         """
         Restart a server
 
@@ -182,7 +188,9 @@ class ServerManager:
 
             # Update the container
             new_container_id = self.docker_service.update_container(
-                container_id=server_instance.container_id, image=new_image, preserve_data=True
+                container_id=server_instance.container_id,
+                image=new_image,
+                preserve_data=True,
             )
 
             server_instance.container_id = new_container_id
@@ -218,7 +226,10 @@ class ServerManager:
                 try:
                     self.docker_service.stop_container(container_id)
                 except docker.errors.NotFound:
-                    logger.warning("[server_manager] Couldn't find container %s to stop it. Skipping", server_instance)
+                    logger.warning(
+                        "[server_manager] Couldn't find container %s to stop it. Skipping",
+                        server_instance,
+                    )
 
                 self.docker_service.remove_container(container_id, force=True, volumes=delete_data)
 

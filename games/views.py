@@ -62,7 +62,10 @@ class GameViewSet(viewsets.ModelViewSet):
             return response
         except DRFValidationError as e:
             logger.warning(f"[games_game_create] Validation error name={name} errors={e.detail}")
-            return Response({"error": "Erreur de validation", "details": e.detail}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "Erreur de validation", "details": e.detail},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         except IntegrityError as e:
             logger.error(f"[games_game_create] Integrity error name={name} error={str(e)}")
             return Response(
@@ -72,7 +75,8 @@ class GameViewSet(viewsets.ModelViewSet):
         except Exception as e:
             logger.error(f"[games_game_create] Unexpected error name={name} error={str(e)}")
             return Response(
-                {"error": "Une erreur est survenue lors de la création du jeu"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": "Une erreur est survenue lors de la création du jeu"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
     def retrieve(self, request, *args, **kwargs):
@@ -85,7 +89,10 @@ class GameViewSet(viewsets.ModelViewSet):
             return Response({"error": "Jeu non trouvé"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             logger.error(f"[games_game_retrieve] Error retrieving game slug={slug} error={str(e)}")
-            return Response({"error": "Erreur lors de la récupération du jeu"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(
+                {"error": "Erreur lors de la récupération du jeu"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     def update(self, request, *args, **kwargs):
         slug = kwargs.get("slug")
@@ -96,7 +103,10 @@ class GameViewSet(viewsets.ModelViewSet):
             return response
         except DRFValidationError as e:
             logger.warning(f"[games_game_update] Validation error slug={slug} errors={e.detail}")
-            return Response({"error": "Erreur de validation", "details": e.detail}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "Erreur de validation", "details": e.detail},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         except NotFound:
             logger.warning(f"[games_game_update] Game not found slug={slug}")
             return Response({"error": "Jeu non trouvé"}, status=status.HTTP_404_NOT_FOUND)
@@ -119,7 +129,10 @@ class GameViewSet(viewsets.ModelViewSet):
             return response
         except DRFValidationError as e:
             logger.warning(f"[games_game_partial_update] Validation error slug={slug} errors={e.detail}")
-            return Response({"error": "Erreur de validation", "details": e.detail}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "Erreur de validation", "details": e.detail},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         except NotFound:
             logger.warning(f"[games_game_partial_update] Game not found slug={slug}")
             return Response({"error": "Jeu non trouvé"}, status=status.HTTP_404_NOT_FOUND)
@@ -148,7 +161,10 @@ class GameViewSet(viewsets.ModelViewSet):
             return Response({"error": "Jeu non trouvé"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             logger.error(f"[games_game_destroy] Error deleting game slug={slug} error={str(e)}")
-            return Response({"error": "Erreur lors de la suppression du jeu"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(
+                {"error": "Erreur lors de la suppression du jeu"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     @action(detail=True, methods=["get"])
     def versions(self, request, slug=None):
@@ -216,7 +232,10 @@ class GameVersionViewSet(viewsets.ModelViewSet):
             return response
         except DRFValidationError as e:
             logger.warning(f"[games_version_create] Validation error version={version} errors={e.detail}")
-            return Response({"error": "Erreur de validation", "details": e.detail}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "Erreur de validation", "details": e.detail},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         except IntegrityError as e:
             logger.error(f"[games_version_create] Integrity error version={version} error={str(e)}")
             return Response(
@@ -241,7 +260,8 @@ class GameVersionViewSet(viewsets.ModelViewSet):
         except Exception as e:
             logger.error(f"[games_version_retrieve] Error retrieving version id={version_id} error={str(e)}")
             return Response(
-                {"error": "Erreur lors de la récupération de la version"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": "Erreur lors de la récupération de la version"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
     def update(self, request, *args, **kwargs):
@@ -253,7 +273,10 @@ class GameVersionViewSet(viewsets.ModelViewSet):
             return response
         except DRFValidationError as e:
             logger.warning(f"[games_version_update] Validation error id={version_id} errors={e.detail}")
-            return Response({"error": "Erreur de validation", "details": e.detail}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "Erreur de validation", "details": e.detail},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         except NotFound:
             logger.warning(f"[games_version_update] Version not found id={version_id}")
             return Response({"error": "Version non trouvée"}, status=status.HTTP_404_NOT_FOUND)
@@ -279,7 +302,10 @@ class GameVersionViewSet(viewsets.ModelViewSet):
             return response
         except DRFValidationError as e:
             logger.warning(f"[games_version_partial_update] Validation error id={version_id} errors={e.detail}")
-            return Response({"error": "Erreur de validation", "details": e.detail}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "Erreur de validation", "details": e.detail},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         except NotFound:
             logger.warning(f"[games_version_partial_update] Version not found id={version_id}")
             return Response({"error": "Version non trouvée"}, status=status.HTTP_404_NOT_FOUND)
@@ -309,7 +335,8 @@ class GameVersionViewSet(viewsets.ModelViewSet):
         except Exception as e:
             logger.error(f"[games_version_destroy] Error deleting version id={version_id} error={str(e)}")
             return Response(
-                {"error": "Erreur lors de la suppression de la version"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": "Erreur lors de la suppression de la version"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
 
@@ -340,7 +367,10 @@ class GameConfigurationViewSet(viewsets.ModelViewSet):
             return response
         except DRFValidationError as e:
             logger.warning(f"[games_config_create] Validation error name={name} errors={e.detail}")
-            return Response({"error": "Erreur de validation", "details": e.detail}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "Erreur de validation", "details": e.detail},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         except IntegrityError as e:
             logger.error(f"[games_config_create] Integrity error name={name} error={str(e)}")
             return Response(
@@ -365,7 +395,8 @@ class GameConfigurationViewSet(viewsets.ModelViewSet):
         except Exception as e:
             logger.error(f"[games_config_retrieve] Error retrieving configuration id={config_id} error={str(e)}")
             return Response(
-                {"error": "Erreur lors de la récupération de la configuration"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": "Erreur lors de la récupération de la configuration"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
     def update(self, request, *args, **kwargs):
@@ -377,7 +408,10 @@ class GameConfigurationViewSet(viewsets.ModelViewSet):
             return response
         except DRFValidationError as e:
             logger.warning(f"[games_config_update] Validation error id={config_id} errors={e.detail}")
-            return Response({"error": "Erreur de validation", "details": e.detail}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "Erreur de validation", "details": e.detail},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         except NotFound:
             logger.warning(f"[games_config_update] Configuration not found id={config_id}")
             return Response({"error": "Configuration non trouvée"}, status=status.HTTP_404_NOT_FOUND)
@@ -433,5 +467,6 @@ class GameConfigurationViewSet(viewsets.ModelViewSet):
         except Exception as e:
             logger.error(f"[games_config_destroy] Error deleting configuration id={config_id} error={str(e)}")
             return Response(
-                {"error": "Erreur lors de la suppression de la configuration"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": "Erreur lors de la suppression de la configuration"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )

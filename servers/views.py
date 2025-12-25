@@ -40,6 +40,8 @@ class IsOwnerOrAdmin(permissions.BasePermission):
             return True
         if hasattr(obj, "server"):
             return obj.server.owner == request.user
+        if obj.is_public:
+            return True
         return obj.owner == request.user
 
 
@@ -48,7 +50,11 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
     serializer_class = ServerInstanceListSerializer
     permission_classes = [permissions.IsAuthenticated, IsOwnerOrAdmin]
     throttle_classes = [AnonRateThrottle, UserRateThrottle]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [
+        DjangoFilterBackend,
+        filters.SearchFilter,
+        filters.OrderingFilter,
+    ]
     filterset_fields = ["game", "status", "is_public", "owner"]
     search_fields = ["name", "description"]
     ordering_fields = ["name", "created_at", "last_started_at"]
@@ -77,7 +83,8 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
         except Exception as e:
             logger.error(f"[servers_instance_list] Error listing servers error={str(e)}")
             return Response(
-                {"error": "Erreur lors de la récupération des serveurs"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": "Erreur lors de la récupération des serveurs"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
     def create(self, request, *args, **kwargs):
@@ -100,7 +107,10 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
             raise Exception("Server creation failed")
         except DRFValidationError as e:
             logger.warning(f"[servers_instance_create] Validation error name={name} errors={e.detail}")
-            return Response({"error": "Erreur de validation", "details": e.detail}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "Erreur de validation", "details": e.detail},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         except IntegrityError as e:
             logger.error(f"[servers_instance_create] Integrity error name={name} error={str(e)}")
             return Response(
@@ -109,7 +119,10 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
             )
         except Exception:
             logger.error(f"[servers_instance_create] Unexpected error name={name} error={traceback.format_exc()}")
-            return Response({"error": "Erreur lors de la création du serveur"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(
+                {"error": "Erreur lors de la création du serveur"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     def retrieve(self, request, *args, **kwargs):
         server_id = kwargs.get("pk")
@@ -129,7 +142,10 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
             return response
         except DRFValidationError as e:
             logger.warning(f"[servers_instance_update] Validation error id={server_id} errors={e.detail}")
-            return Response({"error": "Erreur de validation", "details": e.detail}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "Erreur de validation", "details": e.detail},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         except NotFound:
             logger.warning(f"[servers_instance_update] Server not found id={server_id}")
             return Response({"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
@@ -149,7 +165,10 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
             return response
         except DRFValidationError as e:
             logger.warning(f"[servers_instance_partial_update] Validation error id={server_id} errors={e.detail}")
-            return Response({"error": "Erreur de validation", "details": e.detail}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "Erreur de validation", "details": e.detail},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         except NotFound:
             logger.warning(f"[servers_instance_partial_update] Server not found id={server_id}")
             return Response({"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
@@ -175,7 +194,10 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
             return Response({"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             logger.error(f"[servers_instance_destroy] Error deleting server id={server_id} error={str(e)}")
-            return Response({"error": "Erreur lors de la suppression du serveur"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(
+                {"error": "Erreur lors de la suppression du serveur"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     @action(detail=True, methods=["post"])
     def start(self, request, pk=None):
@@ -276,7 +298,10 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
 
             if server.status == ServerInstance.STOPPED:
                 logger.warning(f"[servers_instance_stop] Server already stopped id={pk}")
-                return Response({"error": "Le serveur est déjà arrêté"}, status=status.HTTP_400_BAD_REQUEST)
+                return Response(
+                    {"error": "Le serveur est déjà arrêté"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
             stop_server_task.delay(server.pk)
             ServerStatus.objects.create(
@@ -413,7 +438,12 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
         try:
             server = self.get_object()
             # TODO: implement socker to stream logs
-            return Response({"logs": "Logs Docker à implémenter", "container_id": server.container_id})
+            return Response(
+                {
+                    "logs": "Logs Docker à implémenter",
+                    "container_id": server.container_id,
+                }
+            )
         except NotFound:
             logger.warning(f"[servers_instance_logs] Server not found id={pk}")
             return Response({"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
@@ -493,7 +523,10 @@ class ServerPlayerViewSet(viewsets.ModelViewSet):
             return super().list(request, *args, **kwargs)
         except Exception as e:
             logger.error(f"[servers_player_list] Error listing players error={str(e)}")
-            return Response({"error": "Erreur lors de la récupération des joueurs"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(
+                {"error": "Erreur lors de la récupération des joueurs"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     def create(self, request, *args, **kwargs):
         username = request.data.get("minecraft_username", "unknown")
@@ -515,7 +548,10 @@ class ServerPlayerViewSet(viewsets.ModelViewSet):
             )
         except Exception as e:
             logger.error(f"[servers_player_create] Unexpected error username={username} error={str(e)}")
-            return Response({"error": "Erreur lors de la création du joueur"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(
+                {"error": "Erreur lors de la création du joueur"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     def retrieve(self, request, *args, **kwargs):
         player_id = kwargs.get("pk")
@@ -527,7 +563,10 @@ class ServerPlayerViewSet(viewsets.ModelViewSet):
             return Response({"error": "Joueur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             logger.error(f"[servers_player_retrieve] Error retrieving player id={player_id} error={str(e)}")
-            return Response({"error": "Erreur lors de la récupération du joueur"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(
+                {"error": "Erreur lors de la récupération du joueur"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     def update(self, request, *args, **kwargs):
         player_id = kwargs.get("pk")
@@ -550,7 +589,10 @@ class ServerPlayerViewSet(viewsets.ModelViewSet):
             )
         except Exception as e:
             logger.error(f"[servers_player_update] Unexpected error id={player_id} error={str(e)}")
-            return Response({"error": "Erreur lors de la mise à jour du joueur"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(
+                {"error": "Erreur lors de la mise à jour du joueur"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     def partial_update(self, request, *args, **kwargs):
         player_id = kwargs.get("pk")
@@ -574,7 +616,8 @@ class ServerPlayerViewSet(viewsets.ModelViewSet):
         except Exception as e:
             logger.error(f"[servers_player_partial_update] Unexpected error id={player_id} error={str(e)}")
             return Response(
-                {"error": "Erreur lors de la mise à jour partielle du joueur"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": "Erreur lors de la mise à jour partielle du joueur"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
     def destroy(self, request, *args, **kwargs):
@@ -589,4 +632,7 @@ class ServerPlayerViewSet(viewsets.ModelViewSet):
             return Response({"error": "Joueur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             logger.error(f"[servers_player_destroy] Error deleting player id={player_id} error={str(e)}")
-            return Response({"error": "Erreur lors de la suppression du joueur"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(
+                {"error": "Erreur lors de la suppression du joueur"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
