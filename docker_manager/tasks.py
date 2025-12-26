@@ -430,3 +430,17 @@ def sync_container_status():
 
     except Exception as e:
         beat_logger.error("[docker_manager] Error during status synchronization: %r", e)
+
+
+@shared_task
+def delete_unused_containers():
+    """
+    Delete unused containers
+    """
+    try:
+        from docker_manager.services.server_manager import get_server_manager
+
+        manager = get_server_manager()
+        manager.delete_unused_containers()
+    except Exception as e:
+        beat_logger.error("[docker_manager] Error during unused containers deletion: %r", e)

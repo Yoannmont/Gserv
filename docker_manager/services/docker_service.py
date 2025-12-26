@@ -497,22 +497,6 @@ class DockerService:
             logger.error("[docker_service] Error during container listing: %r", e)
             raise DockerServiceError(f"[docker_service] Error during container listing: {e}")
 
-    def cleanup_unused_containers(self) -> int:
-        """
-        Clean up unused containers
-
-        Returns:
-            Number of containers removed
-        """
-        try:
-            removed = self.client.containers.prune()
-            count = len(removed["ContainersDeleted"] or [])
-            logger.info(f"[docker_service] {count} unused containers removed")
-            return count
-        except docker.errors.APIError as e:
-            logger.error("[docker_service] Error during container cleanup: %r", e)
-            raise DockerServiceError(f"[docker_service] Error during container cleanup: {e}")
-
 
 # Singleton instance
 _docker_service = None

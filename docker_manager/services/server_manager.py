@@ -379,6 +379,17 @@ class ServerManager:
             )
             return ServerInstance.ERROR
 
+    def delete_unused_containers(self):
+        """
+        Delete unused containers
+        """
+        known_containers = ServerInstance.objects.values_list("container_id", flat=True)
+        containers = self.docker_service.list_containers(all=True)
+        for container in containers:
+            if container["id"] not in known_containers:
+                self.docker_service.remove_container(container["id"], force=True, volumes=False)
+                logger.info(f"[server_manager] Deleted unused container: {container['id']}")
+
     # Private methods
 
     def _create_server_directories(self, server_instance) -> str:

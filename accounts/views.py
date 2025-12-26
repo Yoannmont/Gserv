@@ -317,7 +317,13 @@ class TokenLogoutView(APIView):
             return Response({"message": "Déconnexion réussie"}, status=status.HTTP_200_OK)
         except TokenError:
             logger.warning(f"[accounts_token_logout] Invalid or missing refresh token id={user_id}")
-            return Response({"error": "Token invalide ou manquant"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "Token invalide ou manquant"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         except Exception as e:
             logger.error(f"[accounts_token_logout] Logout error id={user_id} error={str(e)}")
-            return Response({"error": "Erreur lors de la déconnexion"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(
+                {"error": "Erreur lors de la déconnexion"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
