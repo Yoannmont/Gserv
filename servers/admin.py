@@ -109,7 +109,7 @@ class ServerRoleAdmin(admin.ModelAdmin):
         "added_at",
     ]
     search_fields = ["server__name", "user__username", "user__email"]
-    readonly_fields = ["added_at"]
+    readonly_fields = ["added_at", "added_by", "user"]
     autocomplete_fields = ["user", "added_by"]
 
     fieldsets = (

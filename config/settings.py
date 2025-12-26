@@ -302,6 +302,10 @@ class Dev(Configuration):
     SERVER_RESTART_TIMEOUT = values.IntegerValue(default=25)
     # endregion
 
+    # region swagger --------------------------------------------------------------------------------------
+    SWAGGER_USE_COMPAT_RENDERERS = False
+    # endregion
+
 
 class Prod(Dev):
     # region Basic Django --------------------------------------------------------------------------------------

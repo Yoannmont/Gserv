@@ -6,7 +6,7 @@ from django.db import IntegrityError, models
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, permissions, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import NotFound
+from rest_framework.exceptions import NotFound, PermissionDenied
 from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
@@ -203,6 +203,12 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
                 {"error": "Erreur de contrainte d'intégrité lors de la mise à jour"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        except PermissionDenied as e:
+            logger.warning(f"[servers_instance_update] Permission denied id={server_id} error={str(e)}")
+            return Response(
+                {"error": "Permission refusée pour la mise à jour du serveur"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         except Exception as e:
             logger.error(f"[servers_instance_update] Unexpected error id={server_id} error={str(e)}")
             return Response(
@@ -231,6 +237,12 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
             return Response(
                 {"error": "Erreur de contrainte d'intégrité lors de la mise à jour"},
                 status=status.HTTP_400_BAD_REQUEST,
+            )
+        except PermissionDenied as e:
+            logger.warning(f"[servers_instance_partial_update] Permission denied id={server_id} error={str(e)}")
+            return Response(
+                {"error": "Permission refusée pour la mise à jour partielle du serveur"},
+                status=status.HTTP_403_FORBIDDEN,
             )
         except Exception as e:
             logger.error(f"[servers_instance_partial_update] Unexpected error id={server_id} error={str(e)}")
@@ -302,6 +314,12 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
                 {"error": "Erreur lors du démarrage du serveur"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+        except PermissionDenied as e:
+            logger.warning(f"[servers_instance_start] Permission denied id={pk} error={str(e)}")
+            return Response(
+                {"error": "Permission refusée pour le démarrage du serveur"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         except Exception as e:
             logger.error(f"[servers_instance_start] Unexpected error id={pk} error={str(e)}")
             return Response(
@@ -351,6 +369,12 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
             return Response(
                 {"error": "Erreur lors du démarrage du serveur"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        except PermissionDenied as e:
+            logger.warning(f"[servers_instance_start] Permission denied id={pk} error={str(e)}")
+            return Response(
+                {"error": "Permission refusée pour le démarrage du serveur"},
+                status=status.HTTP_403_FORBIDDEN,
             )
         except Exception as e:
             logger.error(f"[servers_instance_start] Unexpected error id={pk} error={str(e)}")
@@ -402,6 +426,12 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
                 {"error": "Erreur lors de l'arrêt du serveur"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+        except PermissionDenied as e:
+            logger.warning(f"[servers_instance_stop] Permission denied id={pk} error={str(e)}")
+            return Response(
+                {"error": "Permission refusée pour l'arrêt du serveur"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         except Exception as e:
             logger.error(f"[servers_instance_stop] Unexpected error id={pk} error={str(e)}")
             return Response(
@@ -443,6 +473,12 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
             return Response(
                 {"error": "Erreur lors du redémarrage du serveur"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        except PermissionDenied as e:
+            logger.warning(f"[servers_instance_restart] Permission denied id={pk} error={str(e)}")
+            return Response(
+                {"error": "Permission refusée pour le redémarrage du serveur"},
+                status=status.HTTP_403_FORBIDDEN,
             )
         except Exception as e:
             logger.error(f"[servers_instance_restart] Unexpected error id={pk} error={str(e)}")
@@ -497,6 +533,12 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
             return Response(
                 {"error": "Erreur lors de la mise à jour du serveur"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        except PermissionDenied as e:
+            logger.warning(f"[servers_instance_update_server] Permission denied id={pk} error={str(e)}")
+            return Response(
+                {"error": "Permission refusée pour la mise à jour du serveur"},
+                status=status.HTTP_403_FORBIDDEN,
             )
         except Exception as e:
             logger.error(f"[servers_instance_update_server] Unexpected error id={pk} error={str(e)}")
@@ -604,6 +646,12 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
             return Response(
                 {"error": "Cet utilisateur a déjà un rôle sur ce serveur"},
                 status=status.HTTP_400_BAD_REQUEST,
+            )
+        except PermissionDenied as e:
+            logger.warning(f"[servers_instance_roles] Permission denied id={pk} error={str(e)}")
+            return Response(
+                {"error": "Permission refusée pour la gestion des rôles"},
+                status=status.HTTP_403_FORBIDDEN,
             )
         except Exception as e:
             logger.error(f"[servers_instance_roles] Unexpected error id={pk} error={str(e)}")
