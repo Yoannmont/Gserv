@@ -15,7 +15,6 @@ from games.tests.games_factories import GameFactory, GameVersionFactory
 from servers.models import ServerInstance
 from servers.tests.servers_factories import (
     ServerInstanceFactory,
-    ServerPlayerFactory,
 )
 
 
@@ -377,37 +376,6 @@ class TestServerActions:
 
 
 @pytest.mark.django_db
-class TestServerPlayersManagement:
-    def test_list_server_players(self, authenticated_client, user):
-        server = ServerInstanceFactory(owner=user)
-        ServerPlayerFactory.create_batch(5, server=server)
-
-        url = reverse("server-players", kwargs={"pk": server.id})
-        response = authenticated_client.get(url)
-
-        assert response.status_code == status.HTTP_200_OK
-        assert len(response.data) == 5
-
-    def test_add_player(self, authenticated_client, user):
-        server = ServerInstanceFactory(owner=user)
-
-        url = reverse("server-players", kwargs={"pk": server.id})
-        data = {
-            "minecraft_username": "Steve",
-            "minecraft_uuid": "12345678-1234-1234-1234-123456789012",
-            "permission_level": "player",
-        }
-
-        response = authenticated_client.post(url, data, format="json")
-
-        assert response.status_code == status.HTTP_201_CREATED
-
-        from servers.models import ServerPlayer
-
-        assert ServerPlayer.objects.filter(server=server, minecraft_username="Steve").exists()
-
-
-@pytest.mark.django_db
 class TestPermissions:
     def test_user_cannot_access_other_user_server(self, authenticated_client, patched_docker_service, fake_container):
         other_user = UserFactory()
@@ -442,64 +410,3 @@ class TestPermissions:
         response = api_client.post(url, data, format="json")
 
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
-
-
-@pytest.mark.django_db
-class TestServerPlayerViewSet:
-    def test_list_server_players_viewset(self, authenticated_client, user):
-        server = ServerInstanceFactory(owner=user)
-        ServerPlayerFactory.create_batch(3, server=server)
-
-        url = reverse("serverplayer-list")
-        response = authenticated_client.get(url)
-
-        assert response.status_code == status.HTTP_200_OK
-        assert len(response.data["results"]) >= 3
-
-    def test_retrieve_server_player(self, authenticated_client, user):
-        server = ServerInstanceFactory(owner=user)
-        player = ServerPlayerFactory(server=server, minecraft_username="TestPlayer")
-
-        url = reverse("serverplayer-detail", kwargs={"pk": player.id})
-        response = authenticated_client.get(url)
-
-        assert response.status_code == status.HTTP_200_OK
-        assert response.data["minecraft_username"] == "TestPlayer"
-
-    def test_update_server_player(self, authenticated_client, user):
-        server = ServerInstanceFactory(owner=user)
-        player = ServerPlayerFactory(server=server, permission_level="player")
-
-        url = reverse("serverplayer-detail", kwargs={"pk": player.id})
-        data = {"permission_level": "moderator", "is_banned": False}
-
-        response = authenticated_client.put(url, data, format="json")
-
-        assert response.status_code == status.HTTP_200_OK
-        player.refresh_from_db()
-        assert player.permission_level == "moderator"
-
-    def test_partial_update_server_player(self, authenticated_client, user):
-        server = ServerInstanceFactory(owner=user)
-        player = ServerPlayerFactory(server=server, is_banned=False)
-
-        url = reverse("serverplayer-detail", kwargs={"pk": player.id})
-        data = {"is_banned": True}
-
-        response = authenticated_client.patch(url, data, format="json")
-
-        assert response.status_code == status.HTTP_200_OK
-        player.refresh_from_db()
-        assert player.is_banned is True
-
-    def test_delete_server_player(self, authenticated_client, user):
-        server = ServerInstanceFactory(owner=user)
-        player = ServerPlayerFactory(server=server)
-
-        url = reverse("serverplayer-detail", kwargs={"pk": player.id})
-        response = authenticated_client.delete(url)
-
-        assert response.status_code == status.HTTP_204_NO_CONTENT
-        from servers.models import ServerPlayer
-
-        assert not ServerPlayer.objects.filter(id=player.id).exists()

@@ -3,8 +3,10 @@ from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView, TokenVerifyView
 
 from accounts.views import CustomTokenObtainPairView, TokenLogoutView, UserViewSet
-from games.views import GameConfigurationViewSet, GameVersionViewSet, GameViewSet
-from servers.views import ServerInstanceViewSet, ServerPlayerViewSet
+from games.views import GameViewSet
+from servers.views import (
+    ServerInstanceViewSet,
+)
 
 
 class NoThrottleTokenRefreshView(TokenRefreshView):
@@ -20,11 +22,9 @@ router = DefaultRouter()
 router.register(r"users", UserViewSet, basename="user")
 
 router.register(r"games", GameViewSet, basename="game")
-router.register(r"game-versions", GameVersionViewSet, basename="gameversion")
-router.register(r"game-configurations", GameConfigurationViewSet, basename="gameconfiguration")
 
 router.register(r"servers", ServerInstanceViewSet, basename="server")
-router.register(r"server-players", ServerPlayerViewSet, basename="serverplayer")
+
 
 urlpatterns = [
     path("auth/login/", CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),

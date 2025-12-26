@@ -22,14 +22,14 @@ from docker_manager.tasks import (
     stop_server_task,
     update_server_task,
 )
-from servers.models import ServerInstance, ServerMetrics, ServerPlayer, ServerStatus
+from servers.models import ServerInstance, ServerMetrics, ServerStatus
 from servers.serializers import (
     ServerInstanceCreateSerializer,
     ServerInstanceDetailSerializer,
     ServerInstanceListSerializer,
     ServerInstanceUpdateSerializer,
+    ServerManagerSerializer,
     ServerMetricsSerializer,
-    ServerPlayerSerializer,
     ServerStatusSerializer,
 )
 
@@ -45,6 +45,52 @@ class IsOwnerOrAdmin(permissions.BasePermission):
         if obj.is_public:
             return True
         return obj.owner == request.user
+
+
+class IsServerManager(permissions.BasePermission):
+    """Permission pour vérifier si un utilisateur peut gérer un serveur"""
+
+    def has_object_permission(self, request, view, obj):
+        if request.user.is_admin:
+            return True
+
+        if obj.owner == request.user:
+            return True
+
+        try:
+            manager = obj.managers.get(user=request.user)
+            # Check according to the requested action
+            if view.action in [
+                "list",
+                "retrieve",
+                "status_history",
+                "logs",
+                "metrics",
+                "managers",
+            ]:
+                return manager.can_view
+            elif view.action in ["update", "partial_update"]:
+                return manager.can_edit
+            elif view.action in [
+                "start",
+                "stop",
+                "restart",
+                "update_server",
+                "full_reset",
+            ]:
+                return manager.can_control
+            elif view.action == "destroy":
+                return manager.can_delete
+            return manager.can_view
+        except obj.managers.model.DoesNotExist:
+            pass
+
+        # Public servers are visible in read-only for GET actions
+        if obj.is_public and request.method in permissions.SAFE_METHODS:
+            if view.action in ["list", "retrieve", "status_history", "logs", "metrics"]:
+                return True
+
+        return False
 
 
 class ServerInstanceViewSet(viewsets.ModelViewSet):
@@ -467,50 +513,56 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
             )
 
     @action(detail=True, methods=["get", "post"])
-    def players(self, request, pk=None):
+    def managers(self, request, pk=None):
         """
-        List or add players (whitelist/permissions) for a server instance.
+        Liste ou ajoute des gestionnaires pour une instance de serveur.
 
-        GET: Returns all players configured for the server, including their
-             permissions and ban status.
-        POST: Adds a new player to the server whitelist with specified
-              permissions. The player data must include Minecraft username/UUID.
+        GET: Retourne tous les gestionnaires configurés pour le serveur
+        POST: Ajoute un nouveau gestionnaire avec un rôle spécifique.
+              Seul le propriétaire peut ajouter des gestionnaires.
 
         Returns:
-            GET: List of server players
-            POST: Created player data with 201 status
+            GET: Liste des gestionnaires
+            POST: Données du gestionnaire créé avec statut 201
         """
         try:
             server = self.get_object()
 
+            # Vérifier que seul le propriétaire peut gérer les gestionnaires
+            if server.owner != request.user and not request.user.is_admin:
+                return Response(
+                    {"error": "Seul le propriétaire peut gérer les gestionnaires"},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
             if request.method == "GET":
-                logger.info(f"[servers_instance_players] Get server players request id={pk}")
-                players = server.players.all()
-                serializer = ServerPlayerSerializer(players, many=True)
+                logger.info(f"[servers_instance_managers] Get server managers request id={pk}")
+                managers = server.managers.all()
+                serializer = ServerManagerSerializer(managers, many=True)
                 return Response(serializer.data)
 
-            logger.info(f"[servers_instance_players] Add server player request id={pk}")
-            serializer = ServerPlayerSerializer(data=request.data)
+            logger.info(f"[servers_instance_managers] Add server manager request id={pk}")
+            serializer = ServerManagerSerializer(data=request.data, context={"request": request, "server": server})
             serializer.is_valid(raise_exception=True)
-            serializer.save(server=server)
-            player_id = serializer.data.get("id", "unknown")
-            logger.info(f"[servers_instance_players] Server player added successfully id={pk} player_id={player_id}")
+            serializer.save(server=server, added_by=request.user)
+            manager_id = serializer.data.get("id", "unknown")
+            logger.info(f"[servers_instance_managers] Server manager added successfully id={pk} manager_id={manager_id}")
 
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         except NotFound:
-            logger.warning(f"[servers_instance_players] Server not found id={pk}")
-            raise
+            logger.warning(f"[servers_instance_managers] Server not found id={pk}")
+            return Response({"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
         except DRFValidationError as e:
-            logger.warning(f"[servers_instance_players] Validation error id={pk} errors={e.detail}")
+            logger.warning(f"[servers_instance_managers] Validation error id={pk} errors={e.detail}")
             raise
         except IntegrityError as e:
-            logger.error(f"[servers_instance_players] Integrity error id={pk} error={str(e)}")
+            logger.error(f"[servers_instance_managers] Integrity error id={pk} error={str(e)}")
             return Response(
-                {"error": "Erreur lors de l'ajout du joueur"},
+                {"error": "Cet utilisateur est déjà gestionnaire de ce serveur"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         except Exception as e:
-            logger.error(f"[servers_instance_players] Unexpected error id={pk} error={str(e)}")
+            logger.error(f"[servers_instance_managers] Unexpected error id={pk} error={str(e)}")
             raise
 
     @action(detail=True, methods=["get"])
@@ -583,141 +635,5 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
             logger.error(f"[servers_instance_metrics] Error retrieving metrics id={pk} error={str(e)}")
             return Response(
                 {"error": "Erreur lors de la récupération des métriques"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-
-class ServerPlayerViewSet(viewsets.ModelViewSet):
-    queryset = ServerPlayer.objects.all()
-    serializer_class = ServerPlayerSerializer
-    permission_classes = [permissions.IsAuthenticated, IsOwnerOrAdmin]
-    throttle_classes = [AnonRateThrottle, UserRateThrottle]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
-    filterset_fields = ["server", "permission_level", "is_banned"]
-    search_fields = ["minecraft_username", "minecraft_uuid"]
-
-    def get_queryset(self):
-        user = self.request.user
-        if user.is_admin:
-            return ServerPlayer.objects.all()
-        return ServerPlayer.objects.filter(server__owner=user)
-
-    def list(self, request, *args, **kwargs):
-        logger.info("[servers_player_list] Server player list request")
-        try:
-            return super().list(request, *args, **kwargs)
-        except Exception as e:
-            logger.error(f"[servers_player_list] Error listing players error={str(e)}")
-            return Response(
-                {"error": "Erreur lors de la récupération des joueurs"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-    def create(self, request, *args, **kwargs):
-        username = request.data.get("minecraft_username", "unknown")
-        logger.info(f"[servers_player_create] Server player create request username={username}")
-        try:
-            response = super().create(request, *args, **kwargs)
-            if response.status_code == 201:
-                player_id = response.data.get("id")
-                logger.info(f"[servers_player_create] Server player created successfully id={player_id} username={username}")
-            return response
-        except DRFValidationError as e:
-            logger.warning(f"[servers_player_create] Validation error username={username} errors={e.detail}")
-            return Response({"error": "Erreur de validation"}, status=status.HTTP_400_BAD_REQUEST)
-        except IntegrityError as e:
-            logger.error(f"[servers_player_create] Integrity error username={username} error={str(e)}")
-            return Response(
-                {"error": "Un joueur avec cet identifiant existe déjà pour ce serveur"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        except Exception as e:
-            logger.error(f"[servers_player_create] Unexpected error username={username} error={str(e)}")
-            return Response(
-                {"error": "Erreur lors de la création du joueur"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-    def retrieve(self, request, *args, **kwargs):
-        player_id = kwargs.get("pk")
-        logger.info(f"[servers_player_retrieve] Server player retrieve request id={player_id}")
-        try:
-            return super().retrieve(request, *args, **kwargs)
-        except NotFound:
-            logger.warning(f"[servers_player_retrieve] Player not found id={player_id}")
-            return Response({"error": "Joueur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            logger.error(f"[servers_player_retrieve] Error retrieving player id={player_id} error={str(e)}")
-            return Response(
-                {"error": "Erreur lors de la récupération du joueur"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-    def update(self, request, *args, **kwargs):
-        player_id = kwargs.get("pk")
-        logger.info(f"[servers_player_update] Server player update request id={player_id}")
-        try:
-            response = super().update(request, *args, **kwargs)
-            logger.info(f"[servers_player_update] Server player updated successfully id={player_id}")
-            return response
-        except DRFValidationError as e:
-            logger.warning(f"[servers_player_update] Validation error id={player_id} errors={e.detail}")
-            return Response({"error": "Erreur de validation"}, status=status.HTTP_400_BAD_REQUEST)
-        except NotFound:
-            logger.warning(f"[servers_player_update] Player not found id={player_id}")
-            return Response({"error": "Joueur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
-        except IntegrityError as e:
-            logger.error(f"[servers_player_update] Integrity error id={player_id} error={str(e)}")
-            return Response(
-                {"error": "Erreur de contrainte d'intégrité lors de la mise à jour"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        except Exception as e:
-            logger.error(f"[servers_player_update] Unexpected error id={player_id} error={str(e)}")
-            return Response(
-                {"error": "Erreur lors de la mise à jour du joueur"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-    def partial_update(self, request, *args, **kwargs):
-        player_id = kwargs.get("pk")
-        logger.info(f"[servers_player_partial_update] Server player partial update request id={player_id}")
-        try:
-            response = super().partial_update(request, *args, **kwargs)
-            logger.info(f"[servers_player_partial_update] Server player partially updated successfully id={player_id}")
-            return response
-        except DRFValidationError as e:
-            logger.warning(f"[servers_player_partial_update] Validation error id={player_id} errors={e.detail}")
-            return Response({"error": "Erreur de validation"}, status=status.HTTP_400_BAD_REQUEST)
-        except NotFound:
-            logger.warning(f"[servers_player_partial_update] Player not found id={player_id}")
-            return Response({"error": "Joueur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
-        except IntegrityError as e:
-            logger.error(f"[servers_player_partial_update] Integrity error id={player_id} error={str(e)}")
-            return Response(
-                {"error": "Erreur de contrainte d'intégrité lors de la mise à jour"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        except Exception as e:
-            logger.error(f"[servers_player_partial_update] Unexpected error id={player_id} error={str(e)}")
-            return Response(
-                {"error": "Erreur lors de la mise à jour partielle du joueur"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-    def destroy(self, request, *args, **kwargs):
-        player_id = kwargs.get("pk")
-        logger.info(f"[servers_player_destroy] Server player delete request id={player_id}")
-        try:
-            response = super().destroy(request, *args, **kwargs)
-            logger.info(f"[servers_player_destroy] Server player deleted successfully id={player_id}")
-            return response
-        except NotFound:
-            logger.warning(f"[servers_player_destroy] Player not found id={player_id}")
-            return Response({"error": "Joueur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            logger.error(f"[servers_player_destroy] Error deleting player id={player_id} error={str(e)}")
-            return Response(
-                {"error": "Erreur lors de la suppression du joueur"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )

@@ -3,8 +3,8 @@ from django.contrib import admin
 from servers.models import (
     ServerConfiguration,
     ServerInstance,
+    ServerManager,
     ServerMetrics,
-    ServerPlayer,
     ServerStatus,
 )
 
@@ -87,37 +87,52 @@ class ServerStatusAdmin(admin.ModelAdmin):
     ]
 
 
-@admin.register(ServerPlayer)
-class ServerPlayerAdmin(admin.ModelAdmin):
+@admin.register(ServerManager)
+class ServerManagerAdmin(admin.ModelAdmin):
     list_display = [
-        "minecraft_username",
         "server",
         "user",
-        "permission_level",
-        "is_banned",
-        "last_seen",
+        "role",
+        "can_view",
+        "can_edit",
+        "can_control",
+        "can_delete",
+        "added_at",
+        "added_by",
     ]
-    list_filter = ["permission_level", "is_banned", "added_at", "server__game"]
-    search_fields = [
-        "minecraft_username",
-        "minecraft_uuid",
-        "user__username",
-        "server__name",
+    list_filter = [
+        "role",
+        "can_view",
+        "can_edit",
+        "can_control",
+        "can_delete",
+        "added_at",
     ]
-    date_hierarchy = "added_at"
+    search_fields = ["server__name", "user__username", "user__email"]
+    readonly_fields = ["added_at"]
+    autocomplete_fields = ["user", "added_by"]
 
-    fieldsets = [
-        ("Serveur", {"fields": ("server",)}),
-        ("Joueur", {"fields": ("user", "minecraft_username", "minecraft_uuid")}),
-        ("Permissions", {"fields": ("permission_level",)}),
+    fieldsets = (
         (
-            "Bannissement",
-            {"fields": ("is_banned", "ban_reason"), "classes": ("collapse",)},
+            "Informations",
+            {
+                "fields": ("server", "user", "role"),
+            },
         ),
-        ("Statistiques", {"fields": ("last_seen",), "classes": ("collapse",)}),
-    ]
-
-    readonly_fields = ["last_seen"]
+        (
+            "Permissions",
+            {
+                "fields": ("can_view", "can_edit", "can_control", "can_delete"),
+                "description": "Les permissions sont automatiquement mises à jour selon le rôle",
+            },
+        ),
+        (
+            "Métadonnées",
+            {
+                "fields": ("added_at", "added_by"),
+            },
+        ),
+    )
 
 
 @admin.register(ServerMetrics)

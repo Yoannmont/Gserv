@@ -173,56 +173,110 @@ class ServerStatus(models.Model):
         return f"{self.server.name} - {self.status} ({self.created_at})"
 
 
-class ServerPlayer(models.Model):
-    """Players allowed on a server (whitelist/permissions)"""
+class ServerManager(models.Model):
+    """Server managers with different permission levels"""
 
-    PERMISSION_CHOICES = [
-        ("player", "Joueur"),
-        ("moderator", "Modérateur"),
-        ("admin", "Administrateur"),
+    ROLE_VIEWER = "viewer"
+    ROLE_EDITOR = "editor"
+    ROLE_MANAGER = "manager"
+    ROLE_ADMIN = "admin"
+
+    ROLE_CHOICES = [
+        (ROLE_VIEWER, "Visualiseur"),
+        (ROLE_EDITOR, "Éditeur"),
+        (ROLE_MANAGER, "Gestionnaire"),
+        (ROLE_ADMIN, "Administrateur"),
     ]
 
     server = models.ForeignKey(
         ServerInstance,
         on_delete=models.CASCADE,
-        related_name="players",
+        related_name="managers",
         verbose_name="Serveur",
     )
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name="server_access",
+        related_name="managed_servers",
         verbose_name="Utilisateur",
+    )
+    role = models.CharField(
+        max_length=20,
+        choices=ROLE_CHOICES,
+        default=ROLE_VIEWER,
+        verbose_name="Rôle",
+        help_text="Niveau de permission pour gérer ce serveur",
+    )
+    can_view = models.BooleanField(default=True, verbose_name="S visualiser")
+    can_edit = models.BooleanField(default=False, verbose_name="Peut modifier les paramètres")
+    can_control = models.BooleanField(default=False, verbose_name="Peut démarrer/arrêter/redémarrer")
+    can_delete = models.BooleanField(default=False, verbose_name="Peut supprimer")
+    added_at = models.DateTimeField(auto_now_add=True, verbose_name="Date d'ajout")
+    added_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
         null=True,
         blank=True,
+        related_name="added_managers",
+        verbose_name="Ajouté par",
     )
-    minecraft_username = models.CharField(max_length=16, blank=True, verbose_name="Pseudo Minecraft")
-    minecraft_uuid = models.CharField(max_length=36, blank=True, verbose_name="UUID Minecraft")
-    permission_level = models.CharField(
-        max_length=20,
-        choices=PERMISSION_CHOICES,
-        default="player",
-        verbose_name="Niveau de permission",
-    )
-    is_banned = models.BooleanField(default=False, verbose_name="Banni")
-    ban_reason = models.TextField(blank=True, verbose_name="Raison du bannissement")
-    added_at = models.DateTimeField(auto_now_add=True, verbose_name="Date d'ajout")
-    last_seen = models.DateTimeField(null=True, blank=True, verbose_name="Dernière connexion")
 
     class Meta:
-        verbose_name = "Joueur du serveur"
-        verbose_name_plural = "Joueurs des serveurs"
-        unique_together = ["server", "minecraft_username"]
-        ordering = ["minecraft_username"]
+        verbose_name = "Gestionnaire de serveur"
+        verbose_name_plural = "Gestionnaires de serveurs"
+        unique_together = ["server", "user"]
+        ordering = ["-added_at"]
 
     def __str__(self):
-        return f"{self.minecraft_username or self.user.username} sur {self.server.name}"
+        return f"{self.user.username} - {self.get_role_display()} sur {self.server.name}"
+
+    def save(self, *args, **kwargs):
+        """Update automatically the permissions according to the role"""
+        if self.role == self.ROLE_VIEWER:
+            self.can_view = True
+            self.can_edit = False
+            self.can_control = False
+            self.can_delete = False
+        elif self.role == self.ROLE_EDITOR:
+            self.can_view = True
+            self.can_edit = True
+            self.can_control = False
+            self.can_delete = False
+        elif self.role == self.ROLE_MANAGER:
+            self.can_view = True
+            self.can_edit = True
+            self.can_control = True
+            self.can_delete = False
+        elif self.role == self.ROLE_ADMIN:
+            self.can_view = True
+            self.can_edit = True
+            self.can_control = True
+            self.can_delete = True
+
+        super().save(*args, **kwargs)
+
+    def has_permission(self, permission_type: str) -> bool:
+        """Check if the manager has a specific permission"""
+        if permission_type == "view":
+            return self.can_view
+        elif permission_type == "edit":
+            return self.can_edit
+        elif permission_type == "control":
+            return self.can_control
+        elif permission_type == "delete":
+            return self.can_delete
+        return False
 
 
 class ServerMetrics(models.Model):
     """Real-time metrics of a server"""
 
-    server = models.ForeignKey(ServerInstance, on_delete=models.CASCADE, related_name="metrics", verbose_name="Serveur")
+    server = models.ForeignKey(
+        ServerInstance,
+        on_delete=models.CASCADE,
+        related_name="metrics",
+        verbose_name="Serveur",
+    )
     cpu_usage = models.FloatField(verbose_name="Utilisation CPU (%)")
     memory_usage = models.FloatField(verbose_name="Utilisation mémoire (MB)")
     memory_percent = models.FloatField(default=0, verbose_name="Utilisation mémoire (%)")

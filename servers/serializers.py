@@ -4,8 +4,8 @@ from games.serializers import GameSerializer, GameVersionSerializer
 from servers.models import (
     ServerConfiguration,
     ServerInstance,
+    ServerManager,
     ServerMetrics,
-    ServerPlayer,
     ServerStatus,
 )
 
@@ -30,24 +30,44 @@ class ServerConfigurationSerializer(serializers.ModelSerializer):
         return value
 
 
-class ServerPlayerSerializer(serializers.ModelSerializer):
+class ServerManagerSerializer(serializers.ModelSerializer):
+    """Serializer pour les gestionnaires d'un serveur"""
+
     username = serializers.CharField(source="user.username", read_only=True)
+    added_by_username = serializers.CharField(source="added_by.username", read_only=True)
 
     class Meta:
-        model = ServerPlayer
+        model = ServerManager
         fields = [
             "id",
             "user",
             "username",
-            "minecraft_username",
-            "minecraft_uuid",
-            "permission_level",
-            "is_banned",
-            "ban_reason",
+            "role",
+            "can_view",
+            "can_edit",
+            "can_control",
+            "can_delete",
             "added_at",
-            "last_seen",
+            "added_by",
+            "added_by_username",
         ]
-        read_only_fields = ["id", "added_at", "last_seen"]
+        read_only_fields = [
+            "id",
+            "can_view",
+            "can_edit",
+            "can_control",
+            "can_delete",
+            "added_at",
+        ]
+
+    def validate(self, data):
+        """Valider que seul le propriétaire peut ajouter des gestionnaires"""
+        if self.instance is None:  # Création
+            request = self.context.get("request")
+            server = self.context.get("server")
+            if server and server.owner != request.user and not request.user.is_admin:
+                raise serializers.ValidationError("Seul le propriétaire peut ajouter des gestionnaires")
+        return data
 
 
 class ServerStatusSerializer(serializers.ModelSerializer):
@@ -96,7 +116,6 @@ class ServerInstanceDetailSerializer(serializers.ModelSerializer):
     game_version = GameVersionSerializer()
     owner_username = serializers.CharField(source="owner.username", read_only=True)
     configuration = ServerConfigurationSerializer()
-    players = ServerPlayerSerializer(many=True, read_only=True)
     latest_status = serializers.SerializerMethodField()
 
     class Meta:
@@ -119,7 +138,7 @@ class ServerInstanceDetailSerializer(serializers.ModelSerializer):
             "is_public",
             "is_running",
             "configuration",
-            "players",
+            "managers",
             "latest_status",
             "created_at",
             "updated_at",

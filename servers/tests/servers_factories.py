@@ -6,7 +6,6 @@ from games.tests.games_factories import GameFactory, GameVersionFactory
 from servers.models import (
     ServerConfiguration,
     ServerInstance,
-    ServerPlayer,
     ServerStatus,
 )
 
@@ -49,15 +48,3 @@ class ServerStatusFactory(DjangoModelFactory):
     status = "stopped"
     message = factory.Faker("sentence")
     triggered_by = factory.SubFactory(UserFactory)
-
-
-class ServerPlayerFactory(DjangoModelFactory):
-    class Meta:
-        model = ServerPlayer
-
-    server = factory.SubFactory(ServerInstanceFactory)
-    user = factory.SubFactory(UserFactory)
-    minecraft_username = factory.Sequence(lambda n: f"player{n}")
-    minecraft_uuid = factory.Faker("uuid4")
-    permission_level = "player"
-    is_banned = False
