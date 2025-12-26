@@ -1,6 +1,7 @@
 import logging
 import traceback
 
+from celery import chain
 from django.db import IntegrityError, models
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, permissions, status, viewsets
@@ -21,12 +22,13 @@ from docker_manager.tasks import (
     stop_server_task,
     update_server_task,
 )
-from servers.models import ServerInstance, ServerPlayer, ServerStatus
+from servers.models import ServerInstance, ServerMetrics, ServerPlayer, ServerStatus
 from servers.serializers import (
     ServerInstanceCreateSerializer,
     ServerInstanceDetailSerializer,
     ServerInstanceListSerializer,
     ServerInstanceUpdateSerializer,
+    ServerMetricsSerializer,
     ServerPlayerSerializer,
     ServerStatusSerializer,
 )
@@ -94,9 +96,19 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
             response = super().create(request, *args, **kwargs)
             if response.status_code == 201:
                 server_id = response.data.get("id")
+                user_id = request.user.id
+                direct_launch = request.data.get("direct_launch", False)
                 server = ServerInstance.objects.get(id=server_id)
                 logger.info(f"[servers_instance_create] Server instance created successfully id={server_id} name={name}")
-                create_server_task.delay(server_id)
+                # Create server instance
+                if not direct_launch:
+                    create_server_task.delay(server_id)
+                else:
+                    # then launch it
+                    chain(
+                        create_server_task.si(server_id),
+                        start_server_task.si(server_id, user_id),
+                    ).delay()
                 ServerStatus.objects.create(
                     server=server,
                     status=ServerInstance.CREATING,
@@ -500,6 +512,79 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
         except Exception as e:
             logger.error(f"[servers_instance_players] Unexpected error id={pk} error={str(e)}")
             raise
+
+    @action(detail=True, methods=["get"])
+    def metrics(self, request, pk=None):
+        """
+        Récupère les métriques d'un serveur pour affichage de graphes.
+
+        Query parameters:
+            start_date (ISO format, optional): Date de début pour filtrer les métriques
+            end_date (ISO format, optional): Date de fin pour filtrer les métriques
+            limit (int, optional): Nombre maximum de résultats (défaut: 1000)
+
+        Returns:
+            Liste des métriques avec timestamp, cpu_usage, memory_usage, memory_percent
+        """
+        from django.utils.dateparse import parse_datetime
+
+        try:
+            server = self.get_object()
+            logger.info(f"[servers_instance_metrics] Get server metrics request id={pk}")
+
+            # Récupérer les paramètres de filtrage
+            start_date_str = request.query_params.get("start_date")
+            end_date_str = request.query_params.get("end_date")
+            limit = request.query_params.get("limit", 20)
+
+            try:
+                limit = int(limit)
+                if limit < 1 or limit > 10000:
+                    limit = 20
+            except (ValueError, TypeError):
+                limit = 20
+
+            # Construire le queryset
+            queryset = ServerMetrics.objects.filter(server=server)
+
+            # Filtrer par date de début
+            if start_date_str:
+                try:
+                    start_date = parse_datetime(start_date_str)
+                    if start_date:
+                        queryset = queryset.filter(created_at__gte=start_date)
+                except (ValueError, TypeError):
+                    logger.warning(f"[servers_instance_metrics] Invalid start_date format: {start_date_str}")
+
+            # Filtrer par date de fin
+            if end_date_str:
+                try:
+                    end_date = parse_datetime(end_date_str)
+                    if end_date:
+                        queryset = queryset.filter(created_at__lte=end_date)
+                except (ValueError, TypeError):
+                    logger.warning(f"[servers_instance_metrics] Invalid end_date format: {end_date_str}")
+
+            # Ordonner par date (plus ancien au plus récent pour les graphes)
+            queryset = queryset.order_by("created_at")
+
+            # Limiter le nombre de résultats
+            metrics = queryset[:limit]
+
+            serializer = ServerMetricsSerializer(metrics, many=True)
+            logger.info(f"[servers_instance_metrics] Retrieved {len(serializer.data)} metrics for server id={pk}")
+
+            return Response(serializer.data)
+
+        except NotFound:
+            logger.warning(f"[servers_instance_metrics] Server not found id={pk}")
+            return Response({"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"[servers_instance_metrics] Error retrieving metrics id={pk} error={str(e)}")
+            return Response(
+                {"error": "Erreur lors de la récupération des métriques"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
 
 class ServerPlayerViewSet(viewsets.ModelViewSet):

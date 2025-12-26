@@ -61,7 +61,10 @@ def start_server_task(self, server_id: int, user_id: int = None):
 
         # Create history entry
         ServerStatus.objects.create(
-            server=server, status=ServerInstance.RUNNING, message="Serveur démarré avec succès", triggered_by=triggered_by
+            server=server,
+            status=ServerInstance.RUNNING,
+            message="Serveur démarré avec succès",
+            triggered_by=triggered_by,
         )
 
         worker_logger.info(f"[docker_manager] Server {server.name} started with container_id: {server.container_id}")
@@ -75,7 +78,11 @@ def start_server_task(self, server_id: int, user_id: int = None):
             server.status = ServerInstance.ERROR
             server.save(update_fields=["status"])
 
-            ServerStatus.objects.create(server=server, status="error", message=f"Erreur lors du démarrage: {str(e)}")
+            ServerStatus.objects.create(
+                server=server,
+                status="error",
+                message=f"Erreur lors du démarrage: {str(e)}",
+            )
         except Exception as e:
             worker_logger.critical("[docker_manager] Task start failed for server_id=%s : %r", server_id, e)
 
@@ -111,7 +118,10 @@ def stop_server_task(self, server_id: int, user_id: int = None):
         # Create history entry
 
         ServerStatus.objects.create(
-            server=server, status=ServerInstance.STOPPED, message="Serveur arrêté", triggered_by=triggered_by
+            server=server,
+            status=ServerInstance.STOPPED,
+            message="Serveur arrêté",
+            triggered_by=triggered_by,
         )
 
         worker_logger.info(f"[docker_manager] Server {server.name} stopped with container_id: {server.container_id}")
@@ -149,7 +159,10 @@ def restart_server_task(self, server_id: int, user_id: int = None):
         # Create history entry
 
         ServerStatus.objects.create(
-            server=server, status=ServerInstance.RUNNING, message="Serveur redémarré", triggered_by=triggered_by
+            server=server,
+            status=ServerInstance.RUNNING,
+            message="Serveur redémarré",
+            triggered_by=triggered_by,
         )
 
         worker_logger.info(f"[docker_manager] Server {server.name} restarted with container_id: {server.container_id}")
@@ -210,7 +223,11 @@ def update_server_task(self, server_id: int, new_version_id: int = None, user_id
             server.status = ServerInstance.ERROR
             server.save(update_fields=["status"])
         except ServerInstance.DoesNotExist:
-            worker_logger.critical("[docker_manager] Task update failed for server_id=%s because does not exist", server_id, e)
+            worker_logger.critical(
+                "[docker_manager] Task update failed for server_id=%s because does not exist",
+                server_id,
+                e,
+            )
 
         raise self.retry(exc=e, countdown=120)
 
@@ -242,7 +259,10 @@ def full_reset_server_task(self, server_id: int, delete_data: bool = False, user
         manager.start_server(server)
 
         ServerStatus.objects.create(
-            server=server, status=ServerInstance.RUNNING, message="Serveur remis à zéro et relancé", triggered_by=triggered_by
+            server=server,
+            status=ServerInstance.RUNNING,
+            message="Serveur remis à zéro et relancé",
+            triggered_by=triggered_by,
         )
 
         worker_logger.info(f"[docker_manager] Server {server.name} full reset with container_id: {server.container_id}")
@@ -278,7 +298,10 @@ def collect_server_metrics():
                     )
 
             except Exception as e:
-                beat_logger.error(f"[docker_manager] Error during metrics collection for server {server.name}: %r", e)
+                beat_logger.error(
+                    f"[docker_manager] Error during metrics collection for server {server.name}: %r",
+                    e,
+                )
 
         beat_logger.info(f"[docker_manager] Metrics collected for {running_servers.count()} servers")
 
@@ -313,7 +336,10 @@ def check_auto_update_servers():
                     update_server_task.delay(server_id=server.id, new_version_id=recommended.id)
 
             except Exception as e:
-                beat_logger.error(f"[docker_manager] Error during auto-update for server {server.name}: %r", e)
+                beat_logger.error(
+                    f"[docker_manager] Error during auto-update for server {server.name}: %r",
+                    e,
+                )
 
         beat_logger.info(f"[docker_manager] Auto-update check completed for {servers.count()} servers")
 
@@ -385,15 +411,20 @@ def sync_container_status():
                         ServerStatus.objects.create(
                             server=server,
                             status=new_status,
-                            message=f"Transition vers {new_status} (via health check)"
-                            if server.game.health_check_command
-                            else f"Transition vers {new_status} (via statut container)",
+                            message=(
+                                f"Transition vers {new_status} (via health check)"
+                                if server.game.health_check_command
+                                else f"Transition vers {new_status} (via statut container)"
+                            ),
                         )
                         server.save(update_fields=["status"])
                         beat_logger.info(f"[docker_manager] Status synchronized for {server.name}: {new_status}")
 
             except Exception as e:
-                beat_logger.error(f"[docker_manager] Error during status synchronization for server {server.name}: %r", e)
+                beat_logger.error(
+                    f"[docker_manager] Error during status synchronization for server {server.name}: %r",
+                    e,
+                )
 
         beat_logger.info(f"[docker_manager] Status synchronization completed for {servers.count()} servers")
 

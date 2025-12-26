@@ -4,6 +4,7 @@ from games.serializers import GameSerializer, GameVersionSerializer
 from servers.models import (
     ServerConfiguration,
     ServerInstance,
+    ServerMetrics,
     ServerPlayer,
     ServerStatus,
 )
@@ -264,3 +265,21 @@ class ServerInstanceUpdateSerializer(serializers.ModelSerializer):
             config.save()
 
         return instance
+
+
+class ServerMetricsSerializer(serializers.ModelSerializer):
+    timestamp = serializers.DateTimeField(source="created_at", read_only=True)
+
+    class Meta:
+        model = ServerMetrics
+        fields = [
+            "id",
+            "timestamp",
+            "cpu_usage",
+            "memory_usage",
+            "memory_percent",
+            "players_online",
+            "tps",
+            "uptime_seconds",
+        ]
+        read_only_fields = ["id", "timestamp"]
