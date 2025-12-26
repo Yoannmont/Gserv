@@ -173,8 +173,8 @@ class ServerStatus(models.Model):
         return f"{self.server.name} - {self.status} ({self.created_at})"
 
 
-class ServerManager(models.Model):
-    """Server managers with different permission levels"""
+class ServerRole(models.Model):
+    """Server roles with different permission levels"""
 
     ROLE_VIEWER = "viewer"
     ROLE_EDITOR = "editor"
@@ -183,15 +183,15 @@ class ServerManager(models.Model):
 
     ROLE_CHOICES = [
         (ROLE_VIEWER, "Visualiseur"),
-        (ROLE_EDITOR, "Éditeur"),
         (ROLE_MANAGER, "Gestionnaire"),
+        (ROLE_EDITOR, "Éditeur"),
         (ROLE_ADMIN, "Administrateur"),
     ]
 
     server = models.ForeignKey(
         ServerInstance,
         on_delete=models.CASCADE,
-        related_name="managers",
+        related_name="roles",
         verbose_name="Serveur",
     )
     user = models.ForeignKey(
@@ -207,7 +207,7 @@ class ServerManager(models.Model):
         verbose_name="Rôle",
         help_text="Niveau de permission pour gérer ce serveur",
     )
-    can_view = models.BooleanField(default=True, verbose_name="S visualiser")
+    can_view = models.BooleanField(default=True, verbose_name="Peut visualiser")
     can_edit = models.BooleanField(default=False, verbose_name="Peut modifier les paramètres")
     can_control = models.BooleanField(default=False, verbose_name="Peut démarrer/arrêter/redémarrer")
     can_delete = models.BooleanField(default=False, verbose_name="Peut supprimer")
@@ -222,8 +222,8 @@ class ServerManager(models.Model):
     )
 
     class Meta:
-        verbose_name = "Gestionnaire de serveur"
-        verbose_name_plural = "Gestionnaires de serveurs"
+        verbose_name = "Rôle de serveur"
+        verbose_name_plural = "Rôles de serveurs"
         unique_together = ["server", "user"]
         ordering = ["-added_at"]
 
@@ -237,12 +237,12 @@ class ServerManager(models.Model):
             self.can_edit = False
             self.can_control = False
             self.can_delete = False
-        elif self.role == self.ROLE_EDITOR:
-            self.can_view = True
-            self.can_edit = True
-            self.can_control = False
-            self.can_delete = False
         elif self.role == self.ROLE_MANAGER:
+            self.can_view = True
+            self.can_edit = False
+            self.can_control = True
+            self.can_delete = False
+        elif self.role == self.ROLE_EDITOR:
             self.can_view = True
             self.can_edit = True
             self.can_control = True

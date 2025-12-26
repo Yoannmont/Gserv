@@ -28,27 +28,16 @@ from servers.serializers import (
     ServerInstanceDetailSerializer,
     ServerInstanceListSerializer,
     ServerInstanceUpdateSerializer,
-    ServerManagerSerializer,
     ServerMetricsSerializer,
+    ServerRoleSerializer,
     ServerStatusSerializer,
 )
 
 logger = logging.getLogger(__name__)
 
 
-class IsOwnerOrAdmin(permissions.BasePermission):
-    def has_object_permission(self, request, view, obj):
-        if request.user.is_admin:
-            return True
-        if hasattr(obj, "server"):
-            return obj.server.owner == request.user
-        if obj.is_public:
-            return True
-        return obj.owner == request.user
-
-
-class IsServerManager(permissions.BasePermission):
-    """Permission pour vérifier si un utilisateur peut gérer un serveur"""
+class IsServerRole(permissions.BasePermission):
+    """Permission to check if a user can manage a server"""
 
     def has_object_permission(self, request, view, obj):
         if request.user.is_admin:
@@ -58,19 +47,18 @@ class IsServerManager(permissions.BasePermission):
             return True
 
         try:
-            manager = obj.managers.get(user=request.user)
-            # Check according to the requested action
+            role = obj.roles.get(user=request.user)
             if view.action in [
                 "list",
                 "retrieve",
                 "status_history",
                 "logs",
                 "metrics",
-                "managers",
+                "roles",
             ]:
-                return manager.can_view
+                return role.can_view
             elif view.action in ["update", "partial_update"]:
-                return manager.can_edit
+                return role.can_edit
             elif view.action in [
                 "start",
                 "stop",
@@ -78,11 +66,11 @@ class IsServerManager(permissions.BasePermission):
                 "update_server",
                 "full_reset",
             ]:
-                return manager.can_control
+                return role.can_control
             elif view.action == "destroy":
-                return manager.can_delete
-            return manager.can_view
-        except obj.managers.model.DoesNotExist:
+                return role.can_delete
+            return role.can_view
+        except obj.roles.model.DoesNotExist:
             pass
 
         # Public servers are visible in read-only for GET actions
@@ -96,7 +84,7 @@ class IsServerManager(permissions.BasePermission):
 class ServerInstanceViewSet(viewsets.ModelViewSet):
     queryset = ServerInstance.objects.all()
     serializer_class = ServerInstanceListSerializer
-    permission_classes = [permissions.IsAuthenticated, IsOwnerOrAdmin]
+    permission_classes = [permissions.IsAuthenticated, IsServerRole]
     throttle_classes = [AnonRateThrottle, UserRateThrottle]
     filter_backends = [
         DjangoFilterBackend,
@@ -113,7 +101,9 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
         user = self.request.user
         if user.is_admin:
             return ServerInstance.objects.all()
-        return ServerInstance.objects.filter(models.Q(owner=user) | models.Q(is_public=True))
+        return ServerInstance.objects.prefetch_related("roles").filter(
+            models.Q(owner=user) | models.Q(is_public=True) | models.Q(roles__user=user, roles__can_view=True)
+        )
 
     def get_serializer_class(self):
         if self.action == "list":
@@ -213,6 +203,12 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
                 {"error": "Erreur de contrainte d'intégrité lors de la mise à jour"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        except Exception as e:
+            logger.error(f"[servers_instance_update] Unexpected error id={server_id} error={str(e)}")
+            return Response(
+                {"error": "Erreur lors de la mise à jour du serveur"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     def partial_update(self, request, *args, **kwargs):
         server_id = kwargs.get("pk")
@@ -235,6 +231,12 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
             return Response(
                 {"error": "Erreur de contrainte d'intégrité lors de la mise à jour"},
                 status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as e:
+            logger.error(f"[servers_instance_partial_update] Unexpected error id={server_id} error={str(e)}")
+            return Response(
+                {"error": "Erreur lors de la mise à jour partielle du serveur"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
     def destroy(self, request, *args, **kwargs):
@@ -260,11 +262,11 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def start(self, request, pk=None):
         """
-        Start a server instance by creating a Docker container if needed and launching it.
+        Start a server instance.
 
-        This method checks if the server is already running, creates a Docker container
-        if it doesn't exist, and then asynchronously starts the server using Celery.
-        The server status is updated to STARTING and a status history entry is created.
+        This method initiates the server startup process asynchronously.
+        The server status will be updated to STARTING, and a background task
+        will handle the actual Docker container startup.
 
         Returns:
             Response with success message or error if server is already running
@@ -280,7 +282,7 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            start_server_task.delay(server.pk)
+            start_server_task.delay(server.pk, request.user.id)
 
             ServerStatus.objects.create(
                 server=server,
@@ -288,6 +290,7 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
                 message="Démarrage du serveur demandé",
                 triggered_by=request.user,
             )
+            logger.info(f"[servers_instance_start] Server start initiated id={pk}")
 
             return Response({"message": "Démarrage du serveur en cours"})
         except NotFound:
@@ -309,17 +312,16 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def full_reset(self, request, pk=None):
         """
-        Perform a complete reset of the server by deleting and recreating the container.
+        Full reset of a server: delete and recreate it, then start it.
 
-        This method deletes the existing Docker container (optionally with data),
-        creates a new container, and starts it. Useful for troubleshooting or
-        resetting server state to defaults.
+        This is a destructive operation that will delete the current server
+        container and data (if delete_data=True), then recreate and start it.
 
         Request Body:
-            delete_data (bool, optional): If True, also deletes server data files
+            delete_data (bool, optional): If True, also delete server data files
 
         Returns:
-            Response with success message indicating reset completion
+            Response with success message
         """
         logger.info(f"[servers_instance_full_reset] Server full reset request id={pk}")
         try:
@@ -330,7 +332,16 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
 
             msg = "Serveur remis à zéro et relancé"
             if delete_data:
-                msg += ". Données supprimées"
+                msg += " (données supprimées)"
+
+            ServerStatus.objects.create(
+                server=server,
+                status=ServerInstance.CREATING,
+                message=msg,
+                triggered_by=request.user,
+            )
+            logger.info(f"[servers_instance_full_reset] Server full reset initiated id={pk}")
+
             return Response({"message": msg})
         except NotFound:
             logger.warning(f"[servers_instance_start] Server not found id={pk}")
@@ -350,6 +361,16 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"])
     def stop(self, request, pk=None):
+        """
+        Stop a server instance.
+
+        This method initiates the server shutdown process asynchronously.
+        The server status will be updated to STOPPING, and a background task
+        will handle the actual Docker container shutdown.
+
+        Returns:
+            Response with success message or error if server is already stopped
+        """
         logger.info(f"[servers_instance_stop] Server stop request id={pk}")
         try:
             server = self.get_object()
@@ -361,13 +382,15 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            stop_server_task.delay(server.pk)
+            stop_server_task.delay(server.pk, request.user.id)
+
             ServerStatus.objects.create(
                 server=server,
                 status=ServerInstance.STOPPING,
                 message="Arrêt du serveur demandé",
                 triggered_by=request.user,
             )
+            logger.info(f"[servers_instance_stop] Server stop initiated id={pk}")
 
             return Response({"message": "Arrêt du serveur en cours"})
         except NotFound:
@@ -388,18 +411,28 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"])
     def restart(self, request, pk=None):
+        """
+        Restart a server instance.
+
+        This method initiates the server restart process asynchronously.
+        The server will be stopped and then started again.
+
+        Returns:
+            Response with success message
+        """
         logger.info(f"[servers_instance_restart] Server restart request id={pk}")
         try:
             server = self.get_object()
 
-            restart_server_task.delay(server.pk)
+            restart_server_task.delay(server.pk, request.user.id)
 
             ServerStatus.objects.create(
                 server=server,
                 status=ServerInstance.STARTING,
-                message="Redémarrage du serveur demandé.",
+                message="Redémarrage du serveur demandé",
                 triggered_by=request.user,
             )
+            logger.info(f"[servers_instance_restart] Server restart initiated id={pk}")
 
             return Response({"message": "Redémarrage du serveur en cours"})
         except NotFound:
@@ -513,70 +546,81 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
             )
 
     @action(detail=True, methods=["get", "post"])
-    def managers(self, request, pk=None):
+    def roles(self, request, pk=None):
         """
-        Liste ou ajoute des gestionnaires pour une instance de serveur.
+        List or add/delete roles for a server instance.
 
-        GET: Retourne tous les gestionnaires configurés pour le serveur
-        POST: Ajoute un nouveau gestionnaire avec un rôle spécifique.
-              Seul le propriétaire peut ajouter des gestionnaires.
+        GET: Return all roles configured for the server
+        POST: Add a new role with a specific permission level.
+              Only the owner can add roles.
+              Only the owner can delete roles.
+
 
         Returns:
-            GET: Liste des gestionnaires
-            POST: Données du gestionnaire créé avec statut 201
+            GET: List of roles with status 200
+            POST: Role data created with status 201
         """
         try:
             server = self.get_object()
 
-            # Vérifier que seul le propriétaire peut gérer les gestionnaires
             if server.owner != request.user and not request.user.is_admin:
                 return Response(
-                    {"error": "Seul le propriétaire peut gérer les gestionnaires"},
+                    {"error": "Seul le propriétaire peut gérer les rôles"},
                     status=status.HTTP_403_FORBIDDEN,
                 )
 
             if request.method == "GET":
-                logger.info(f"[servers_instance_managers] Get server managers request id={pk}")
-                managers = server.managers.all()
-                serializer = ServerManagerSerializer(managers, many=True)
+                logger.info(f"[servers_instance_roles] Get server roles request id={pk}")
+                roles = server.roles.all()
+                serializer = ServerRoleSerializer(roles, many=True)
                 return Response(serializer.data)
+            elif request.method == "POST":
+                action = request.data.get("action")
+                if action == "add":
+                    logger.info(f"[servers_instance_roles] Add server role request id={pk}")
+                    serializer = ServerRoleSerializer(
+                        data=request.data,
+                        context={"request": request, "server": server},
+                    )
+                    serializer.is_valid(raise_exception=True)
+                    serializer.save(server=server, added_by=request.user)
+                    return Response(serializer.data, status=status.HTTP_201_CREATED)
+                elif action == "delete":
+                    logger.info(f"[servers_instance_roles] Delete server role request id={pk}")
+                    role = server.roles.get(id=request.data.get("id"))
+                    role.delete()
+                    return Response(status=status.HTTP_204_NO_CONTENT)
+                else:
+                    return Response({"error": "Action invalide"}, status=status.HTTP_400_BAD_REQUEST)
 
-            logger.info(f"[servers_instance_managers] Add server manager request id={pk}")
-            serializer = ServerManagerSerializer(data=request.data, context={"request": request, "server": server})
-            serializer.is_valid(raise_exception=True)
-            serializer.save(server=server, added_by=request.user)
-            manager_id = serializer.data.get("id", "unknown")
-            logger.info(f"[servers_instance_managers] Server manager added successfully id={pk} manager_id={manager_id}")
-
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
         except NotFound:
-            logger.warning(f"[servers_instance_managers] Server not found id={pk}")
+            logger.warning(f"[servers_instance_roles] Server not found id={pk}")
             return Response({"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
         except DRFValidationError as e:
-            logger.warning(f"[servers_instance_managers] Validation error id={pk} errors={e.detail}")
+            logger.warning(f"[servers_instance_roles] Validation error id={pk} errors={e.detail}")
             raise
         except IntegrityError as e:
-            logger.error(f"[servers_instance_managers] Integrity error id={pk} error={str(e)}")
+            logger.error(f"[servers_instance_roles] Integrity error id={pk} error={str(e)}")
             return Response(
-                {"error": "Cet utilisateur est déjà gestionnaire de ce serveur"},
+                {"error": "Cet utilisateur a déjà un rôle sur ce serveur"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         except Exception as e:
-            logger.error(f"[servers_instance_managers] Unexpected error id={pk} error={str(e)}")
+            logger.error(f"[servers_instance_roles] Unexpected error id={pk} error={str(e)}")
             raise
 
     @action(detail=True, methods=["get"])
     def metrics(self, request, pk=None):
         """
-        Récupère les métriques d'un serveur pour affichage de graphes.
+        Get server metrics.
 
         Query parameters:
-            start_date (ISO format, optional): Date de début pour filtrer les métriques
-            end_date (ISO format, optional): Date de fin pour filtrer les métriques
-            limit (int, optional): Nombre maximum de résultats (défaut: 1000)
+            start_date (ISO format, optional): Start date to filter metrics
+            end_date (ISO format, optional): End date to filter metrics
+            limit (int, optional): Maximum number of results (default: 20)
 
         Returns:
-            Liste des métriques avec timestamp, cpu_usage, memory_usage, memory_percent
+            List of metrics with timestamp, cpu_usage, memory_usage, memory_percent
         """
         from django.utils.dateparse import parse_datetime
 
@@ -584,7 +628,6 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
             server = self.get_object()
             logger.info(f"[servers_instance_metrics] Get server metrics request id={pk}")
 
-            # Récupérer les paramètres de filtrage
             start_date_str = request.query_params.get("start_date")
             end_date_str = request.query_params.get("end_date")
             limit = request.query_params.get("limit", 20)
@@ -596,10 +639,8 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
             except (ValueError, TypeError):
                 limit = 20
 
-            # Construire le queryset
             queryset = ServerMetrics.objects.filter(server=server)
 
-            # Filtrer par date de début
             if start_date_str:
                 try:
                     start_date = parse_datetime(start_date_str)
@@ -608,7 +649,6 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
                 except (ValueError, TypeError):
                     logger.warning(f"[servers_instance_metrics] Invalid start_date format: {start_date_str}")
 
-            # Filtrer par date de fin
             if end_date_str:
                 try:
                     end_date = parse_datetime(end_date_str)
@@ -617,10 +657,8 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
                 except (ValueError, TypeError):
                     logger.warning(f"[servers_instance_metrics] Invalid end_date format: {end_date_str}")
 
-            # Ordonner par date (plus ancien au plus récent pour les graphes)
             queryset = queryset.order_by("created_at")
 
-            # Limiter le nombre de résultats
             metrics = queryset[:limit]
 
             serializer = ServerMetricsSerializer(metrics, many=True)

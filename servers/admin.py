@@ -3,8 +3,8 @@ from django.contrib import admin
 from servers.models import (
     ServerConfiguration,
     ServerInstance,
-    ServerManager,
     ServerMetrics,
+    ServerRole,
     ServerStatus,
 )
 
@@ -87,8 +87,8 @@ class ServerStatusAdmin(admin.ModelAdmin):
     ]
 
 
-@admin.register(ServerManager)
-class ServerManagerAdmin(admin.ModelAdmin):
+@admin.register(ServerRole)
+class ServerRoleAdmin(admin.ModelAdmin):
     list_display = [
         "server",
         "user",
