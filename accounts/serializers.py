@@ -1,8 +1,12 @@
+import logging
+
 from django.contrib.auth import authenticate
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from accounts.models import User, UserProfile
+
+logger = logging.getLogger(__name__)
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
@@ -48,7 +52,9 @@ class UserCreateSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         if data["password"] != data["password_confirm"]:
-            raise serializers.ValidationError({"password_confirm": "Les mots de passe ne correspondent pas"})
+            raise serializers.ValidationError(
+                {"password_confirm": "Les mots de passe ne correspondent pas"}
+            )
         return data
 
     def create(self, validated_data):
@@ -115,6 +121,20 @@ class UserUpdateSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         profile_data = validated_data.pop("profile", None)
+
+        if "avatar" in validated_data and instance.avatar:
+            old_avatar_name = instance.avatar.name
+            old_avatar_storage = instance.avatar.storage
+            try:
+                if old_avatar_storage.exists(old_avatar_name):
+                    old_avatar_storage.delete(old_avatar_name)
+                    logger.info(
+                        f"[accounts_serializers] Ancien avatar supprimé pour l'utilisateur {instance.id}: {old_avatar_name}"
+                    )
+            except Exception as e:
+                logger.warning(
+                    f"[accounts_serializers] Erreur lors de la suppression de l'ancien avatar pour l'utilisateur {instance.id}: {str(e)}"
+                )
 
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
