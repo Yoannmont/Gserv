@@ -18,9 +18,7 @@ def delete_user_avatar(sender, instance, **kwargs):
             storage = instance.avatar.storage
             if storage.exists(instance.avatar.name):
                 storage.delete(instance.avatar.name)
-                logger.info(
-                    f"[accounts_signals] Avatar supprimé pour l'utilisateur {instance.id}: {instance.avatar.name}"
-                )
+                logger.info(f"[accounts_signals] Avatar supprimé pour l'utilisateur {instance.id}: {instance.avatar.name}")
         except Exception as e:
             logger.error(
                 f"[accounts_signals] Erreur lors de la suppression de l'avatar pour l'utilisateur {instance.id}: {str(e)}"
