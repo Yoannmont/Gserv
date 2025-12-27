@@ -13,7 +13,10 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.tokens import AccessToken
 
-from docker_manager.services.docker_service import DockerServiceError, get_docker_service
+from docker_manager.services.docker_service import (
+    DockerServiceError,
+    get_docker_service,
+)
 from servers.models import ServerInstance
 
 logger = logging.getLogger(__name__)
@@ -78,7 +81,9 @@ class ContainerLogsConsumer(AsyncWebsocketConsumer):
         has_access = await self._verify_container_access()
         if not has_access:
             logger.error(
-                "[ContainerLogsConsumer] User %s has no access to %s container. Rejecting", self.user.username, self.container_id
+                "[ContainerLogsConsumer] User %s has no access to %s container. Rejecting",
+                self.user.username,
+                self.container_id,
             )
             await self.close(code=4003)
             return
@@ -281,8 +286,7 @@ class ContainerLogsConsumer(AsyncWebsocketConsumer):
             if self.user.is_staff or server.owner_id == self.user.id:
                 return True
 
-            # Check if user has player access with admin permission
-            has_admin_access = server.players.filter(user=self.user, permission_level="admin", is_banned=False).exists()
+            has_admin_access = server.roles.filter(user=self.user, role__in=["admin", "manager"]).exists()
 
             return has_admin_access
 

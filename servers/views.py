@@ -176,7 +176,9 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
         server_id = kwargs.get("pk")
         logger.info(f"[servers_instance_retrieve] Server instance retrieve request id={server_id}")
         try:
-            return super().retrieve(request, *args, **kwargs)
+            instance = self.get_object()
+            serializer = self.get_serializer(instance, context={"request": request})
+            return Response(serializer.data)
         except NotFound:
             logger.warning(f"[servers_instance_retrieve] Server not found id={server_id}")
             return Response({"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
@@ -587,35 +589,72 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    @action(detail=True, methods=["get", "post"])
+    @action(detail=True, methods=["get", "post", "patch"])
     def roles(self, request, pk=None):
         """
-        List or add/delete roles for a server instance.
+        List, add, update or delete roles for a server instance.
 
         GET: Return all roles configured for the server
         POST: Add a new role with a specific permission level.
               Only the owner can add roles.
+              Returns error if the user already has a role on this server.
+        PATCH: Update an existing role for a user.
+             Only the owner can update roles.
+             Returns error if the user doesn't have a role on this server.
+        DELETE (via POST with action="delete"): Delete a role.
               Only the owner can delete roles.
-
 
         Returns:
             GET: List of roles with status 200
             POST: Role data created with status 201
+            PATCH: Role data updated with status 200
         """
         try:
             server = self.get_object()
-
-            if server.owner != request.user and not request.user.is_admin:
-                return Response(
-                    {"error": "Seul le propriétaire peut gérer les rôles"},
-                    status=status.HTTP_403_FORBIDDEN,
-                )
 
             if request.method == "GET":
                 logger.info(f"[servers_instance_roles] Get server roles request id={pk}")
                 roles = server.roles.all()
                 serializer = ServerRoleSerializer(roles, many=True)
                 return Response(serializer.data)
+            elif request.method == "PATCH":
+                logger.info(f"[servers_instance_roles] Update server role request id={pk}")
+                from django.contrib.auth import get_user_model
+
+                username_input = request.data.get("username_input", "").strip()
+
+                if username_input:
+                    try:
+                        user = get_user_model().objects.get(username=username_input)
+                    except get_user_model().DoesNotExist:
+                        return Response(
+                            {"error": f"Utilisateur '{username_input}' introuvable"},
+                            status=status.HTTP_404_NOT_FOUND,
+                        )
+                else:
+                    return Response(
+                        {"error": "'username_input' doit être fourni"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                try:
+                    role = server.roles.get(user=user)
+                except server.roles.model.DoesNotExist:
+                    return Response(
+                        {"error": "Cet utilisateur n'a pas de rôle sur ce serveur"},
+                        status=status.HTTP_404_NOT_FOUND,
+                    )
+
+                serializer = ServerRoleSerializer(
+                    role,
+                    data=request.data,
+                    context={"request": request, "server": server},
+                    partial=True,
+                )
+                serializer.is_valid(raise_exception=True)
+                serializer.save()
+                return Response(serializer.data, status=status.HTTP_200_OK)
+
             elif request.method == "POST":
                 action = request.data.get("action")
                 if action == "add":

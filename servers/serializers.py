@@ -83,13 +83,18 @@ class ServerRoleSerializer(serializers.ModelSerializer):
             if not user_provided and not username_provided:
                 raise serializers.ValidationError({"user": "Soit 'user' soit 'username_input' doit être fourni"})
 
-            request = self.context.get("request")
-            server = data.get("server") or self.context.get("server")
-            if server and request:
-                if server.owner != request.user and not request.user.is_admin:
-                    raise serializers.ValidationError("Seul le propriétaire peut ajouter des rôles")
-
         return data
+
+    def update(self, instance, validated_data):
+        request = self.context.get("request")
+        server = self.context.get("server")
+
+        instance.role = validated_data.get("role", instance.role)
+        instance.server = server
+        instance.added_by = request.user
+        instance.save()
+
+        return instance
 
     def create(self, validated_data):
         username_input = validated_data.pop("username_input", None)
@@ -97,16 +102,18 @@ class ServerRoleSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         server = self.context.get("server")
 
-        if server and request:
-            if server.owner != request.user and not request.user.is_admin:
-                raise serializers.ValidationError("Seul le propriétaire peut ajouter des rôles")
-
         if username_input and username_input.strip() and not validated_data.get("user"):
             try:
                 user = get_user_model().objects.get(username=username_input.strip())
+                if server.roles.filter(user=user).exists():
+                    raise serializers.ValidationError({"user": "Cet utilisateur a déjà un rôle sur ce serveur."})
                 validated_data["user"] = user
             except get_user_model().DoesNotExist:
                 raise serializers.ValidationError({"username_input": f"Utilisateur '{username_input}' introuvable"})
+
+        if validated_data.get("user"):
+            if server.roles.filter(user=validated_data["user"]).exists():
+                raise serializers.ValidationError({"user": "Cet utilisateur a déjà un rôle sur ce serveur."})
 
         validated_data["server"] = server
         validated_data["added_by"] = request.user
@@ -133,7 +140,6 @@ class ServerStatusSerializer(serializers.ModelSerializer):
 class ServerInstanceListSerializer(serializers.ModelSerializer):
     game_name = serializers.CharField(source="game.name", read_only=True)
     game_icon = serializers.ImageField(source="game.icon", read_only=True)
-    version = serializers.CharField(source="game_version.version", read_only=True)
     owner_username = serializers.CharField(source="owner.username", read_only=True)
 
     class Meta:
@@ -143,16 +149,11 @@ class ServerInstanceListSerializer(serializers.ModelSerializer):
             "name",
             "game_name",
             "game_icon",
-            "version",
             "owner_username",
             "status",
-            "port",
-            "max_players",
             "is_public",
-            "is_running",
             "created_at",
         ]
-        read_only_fields = ["id", "is_running", "created_at"]
 
 
 class ServerInstanceDetailSerializer(serializers.ModelSerializer):
@@ -160,7 +161,7 @@ class ServerInstanceDetailSerializer(serializers.ModelSerializer):
     game_version = GameVersionSerializer()
     owner_username = serializers.CharField(source="owner.username", read_only=True)
     configuration = ServerConfigurationSerializer()
-    latest_status = serializers.SerializerMethodField()
+    user_role = serializers.SerializerMethodField()
 
     class Meta:
         model = ServerInstance
@@ -180,13 +181,11 @@ class ServerInstanceDetailSerializer(serializers.ModelSerializer):
             "auto_update",
             "backup_enabled",
             "is_public",
-            "is_running",
             "configuration",
-            "roles",
-            "latest_status",
             "created_at",
             "updated_at",
             "last_started_at",
+            "user_role",
         ]
         read_only_fields = [
             "id",
@@ -197,12 +196,16 @@ class ServerInstanceDetailSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
             "last_started_at",
+            "user_role",
         ]
 
-    def get_latest_status(self, obj):
-        latest = obj.status_history.first()
-        if latest:
-            return ServerStatusSerializer(latest).data
+    def get_user_role(self, obj):
+        request = self.context.get("request")
+        if request and request.user.is_authenticated:
+            try:
+                return obj.roles.get(user=request.user).role
+            except ServerRole.DoesNotExist:
+                return None
         return None
 
     def validate(self, data):
