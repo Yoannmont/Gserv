@@ -41,18 +41,15 @@ class GameVersionAdmin(admin.ModelAdmin):
         "game",
         "version",
         "release_date",
-        "is_stable",
-        "is_recommended",
         "docker_tag",
     ]
-    list_filter = ["game", "is_stable", "is_recommended", "release_date"]
+    list_filter = ["game", "release_date"]
     search_fields = ["game__name", "version"]
     date_hierarchy = "release_date"
 
     fieldsets = [
         ("Identification", {"fields": ("game", "version", "docker_tag")}),
-        ("Détails", {"fields": ("release_date", "is_stable", "is_recommended")}),
-        ("Changelog", {"fields": ("changelog",), "classes": ("collapse",)}),
+        ("Détails", {"fields": ("release_date",)}),
     ]
 
 

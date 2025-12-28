@@ -296,6 +296,24 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
+            is_available, conflicting_server, conflicting_port = ServerInstance.is_port_available(
+                port=server.port,
+                additional_ports=server.additional_ports,
+                exclude_server_id=server.id,
+            )
+
+            if not is_available:
+                logger.warning(
+                    f"[servers_instance_start] Port {conflicting_port} already in use by server {conflicting_server.id} id={pk}"
+                )
+                return Response(
+                    {
+                        "error": f"Le port {server.port} est déjà utilisé par le serveur '{conflicting_server.name}' "
+                        f"(ID: {conflicting_server.id})"
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
             start_server_task.delay(server.pk, request.user.id)
 
             ServerStatus.objects.create(
@@ -564,28 +582,6 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
             logger.error(f"[servers_instance_status_history] Error getting status history id={pk} error={str(e)}")
             return Response(
                 {"error": "Erreur lors de la récupération de l'historique"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-    @action(detail=True, methods=["get"])
-    def logs(self, request, pk=None):
-        logger.info(f"[servers_instance_logs] Get server logs request id={pk}")
-        try:
-            server = self.get_object()
-            # TODO: implement socker to stream logs
-            return Response(
-                {
-                    "logs": "Logs Docker à implémenter",
-                    "container_id": server.container_id,
-                }
-            )
-        except NotFound:
-            logger.warning(f"[servers_instance_logs] Server not found id={pk}")
-            return Response({"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            logger.error(f"[servers_instance_logs] Error getting logs id={pk} error={str(e)}")
-            return Response(
-                {"error": "Erreur lors de la récupération des logs"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 

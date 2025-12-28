@@ -6,7 +6,7 @@ class Game(models.Model):
     """Represents a game type (Minecraft, Palworld, etc.)"""
 
     name = models.CharField(max_length=100, unique=True, verbose_name="Nom du jeu")
-    slug = models.SlugField(unique=True, verbose_name="Slug")
+    slug = models.SlugField(unique=True, verbose_name="Slug", db_index=True)
     description = models.TextField(verbose_name="Description")
     icon = models.ImageField(upload_to="games/icons/", null=True, blank=True, verbose_name="Icône")
     docker_image = models.CharField(
@@ -29,7 +29,7 @@ class Game(models.Model):
         help_text='Liste de ports supplémentaires: [{"port": 27015, "protocol": "udp", "description": "Query port"}]',
     )
     documentation_url = models.URLField(blank=True, validators=[URLValidator()], verbose_name="URL de documentation")
-    is_active = models.BooleanField(default=True, verbose_name="Actif")
+    is_active = models.BooleanField(default=True, verbose_name="Actif", db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -69,11 +69,8 @@ class GameVersion(models.Model):
     game = models.ForeignKey(Game, on_delete=models.CASCADE, related_name="versions", verbose_name="Jeu")
     version = models.CharField(max_length=50, verbose_name="Version", help_text="Ex: 1.20.4, latest")
     release_date = models.DateField(null=True, blank=True, verbose_name="Date de sortie")
-    is_stable = models.BooleanField(default=True, verbose_name="Version stable")
-    is_recommended = models.BooleanField(default=False, verbose_name="Version recommandée")
-    changelog = models.TextField(blank=True, verbose_name="Changelog")
     created_at = models.DateTimeField(auto_now_add=True)
-    docker_tag = models.CharField(max_length=40, verbose_name="Tag docker", help_text="Ex: java16")
+    docker_tag = models.CharField(max_length=40, verbose_name="Tag docker", help_text="Ex: java16", db_index=True)
 
     class Meta:
         verbose_name = "Version de jeu"
@@ -92,13 +89,13 @@ class GameConfiguration(models.Model):
         related_name="configurations",
         verbose_name="Jeu",
     )
-    name = models.CharField(max_length=100, verbose_name="Nom de la configuration")
+    name = models.CharField(max_length=100, verbose_name="Nom de la configuration", db_index=True)
     description = models.TextField(blank=True, verbose_name="Description")
     config_data = models.JSONField(
         verbose_name="Données de configuration",
         help_text="Configuration au format JSON",
     )
-    is_default = models.BooleanField(default=False, verbose_name="Configuration par défaut")
+    is_default = models.BooleanField(default=False, verbose_name="Configuration par défaut", db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -25,9 +25,6 @@ class GameVersionFactory(DjangoModelFactory):
     game = factory.SubFactory(GameFactory)
     version = factory.Sequence(lambda n: f"1.{n}.0")
     release_date = factory.Faker("date_this_year")
-    is_stable = True
-    is_recommended = False
-    changelog = factory.Faker("text")
 
 
 class GameConfigurationFactory(DjangoModelFactory):

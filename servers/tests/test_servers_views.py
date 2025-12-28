@@ -338,16 +338,6 @@ class TestServerActions:
         assert first_id != server.container_id
         assert patched_docker_service.containers.get(server.container_id).status == "created"
 
-    def test_get_server_logs(self, authenticated_client, user):
-        server = ServerInstanceFactory(owner=user)
-
-        url = reverse("server-logs", kwargs={"pk": server.id})
-        response = authenticated_client.get(url)
-
-        assert response.status_code == status.HTTP_200_OK
-        assert "logs" in response.data
-        assert "container_id" in response.data
-
     def test_get_status_history(self, authenticated_client, user):
         server = ServerInstanceFactory(owner=user)
         from servers.tests.servers_factories import ServerStatusFactory
@@ -359,6 +349,295 @@ class TestServerActions:
 
         assert response.status_code == status.HTTP_200_OK
         assert len(response.data) == 5
+
+
+@pytest.mark.django_db
+class TestPortValidation:
+    def test_create_server_with_used_port_running(
+        self,
+        authenticated_client,
+        user,
+        patched_docker_service,
+        fake_container,
+        prepare_servers_data_path,
+    ):
+        game = GameFactory()
+        version = GameVersionFactory(game=game)
+        existing_server = ServerInstanceFactory(
+            owner=user,
+            port=25565,
+            status=ServerInstance.RUNNING,
+            container_id=fake_container.id,
+        )
+
+        url = reverse("server-list")
+        data = {
+            "name": "New Server",
+            "game": game.id,
+            "game_version": version.id,
+            "port": 25565,
+            "max_players": 20,
+        }
+
+        response = authenticated_client.post(url, data, format="json")
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "port" in response.data["details"]
+        assert str(existing_server.id) in response.data["details"]["port"][0]
+
+    def test_create_server_with_used_port_starting(
+        self,
+        authenticated_client,
+        user,
+        patched_docker_service,
+        fake_container,
+        prepare_servers_data_path,
+    ):
+        game = GameFactory()
+        version = GameVersionFactory(game=game)
+        ServerInstanceFactory(
+            owner=user,
+            port=25566,
+            status=ServerInstance.STARTING,
+            container_id=fake_container.id,
+        )
+
+        url = reverse("server-list")
+        data = {
+            "name": "New Server",
+            "game": game.id,
+            "game_version": version.id,
+            "port": 25566,
+            "max_players": 20,
+        }
+
+        response = authenticated_client.post(url, data, format="json")
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "port" in response.data["details"]
+
+    def test_create_server_with_used_port_creating(
+        self,
+        authenticated_client,
+        user,
+        patched_docker_service,
+        fake_container,
+        prepare_servers_data_path,
+    ):
+        game = GameFactory()
+        version = GameVersionFactory(game=game)
+        ServerInstanceFactory(
+            owner=user,
+            port=25567,
+            status=ServerInstance.CREATING,
+            container_id=fake_container.id,
+        )
+
+        url = reverse("server-list")
+        data = {
+            "name": "New Server",
+            "game": game.id,
+            "game_version": version.id,
+            "port": 25567,
+            "max_players": 20,
+        }
+
+        response = authenticated_client.post(url, data, format="json")
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "port" in response.data["details"]
+
+    def test_create_server_with_used_additional_port(
+        self,
+        authenticated_client,
+        user,
+        patched_docker_service,
+        fake_container,
+        prepare_servers_data_path,
+    ):
+        game = GameFactory()
+        version = GameVersionFactory(game=game)
+        ServerInstanceFactory(
+            owner=user,
+            port=25568,
+            additional_ports={"27015": 27016},
+            status=ServerInstance.RUNNING,
+            container_id=fake_container.id,
+        )
+
+        url = reverse("server-list")
+        data = {
+            "name": "New Server",
+            "game": game.id,
+            "game_version": version.id,
+            "port": 25569,
+            "additional_ports": {"27015": 27016},
+            "max_players": 20,
+        }
+
+        response = authenticated_client.post(url, data, format="json")
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "port" in response.data["details"]
+
+    def test_create_server_with_port_used_as_additional(
+        self,
+        authenticated_client,
+        user,
+        patched_docker_service,
+        fake_container,
+        prepare_servers_data_path,
+    ):
+        game = GameFactory()
+        version = GameVersionFactory(game=game)
+        ServerInstanceFactory(
+            owner=user,
+            port=25570,
+            additional_ports={"27015": 27017},
+            status=ServerInstance.RUNNING,
+            container_id=fake_container.id,
+        )
+
+        url = reverse("server-list")
+        data = {
+            "name": "New Server",
+            "game": game.id,
+            "game_version": version.id,
+            "port": 27017,
+            "max_players": 20,
+        }
+
+        response = authenticated_client.post(url, data, format="json")
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "port" in response.data["details"]
+
+    def test_create_server_with_stopped_port_allowed(
+        self,
+        authenticated_client,
+        user,
+        patched_docker_service,
+        fake_container,
+        prepare_servers_data_path,
+    ):
+        game = GameFactory()
+        version = GameVersionFactory(game=game)
+        ServerInstanceFactory(owner=user, port=25571, status=ServerInstance.STOPPED)
+
+        url = reverse("server-list")
+        data = {
+            "name": "New Server",
+            "game": game.id,
+            "game_version": version.id,
+            "port": 25571,
+            "max_players": 20,
+        }
+
+        response = authenticated_client.post(url, data, format="json")
+
+        assert response.status_code == status.HTTP_201_CREATED
+
+    def test_start_server_with_used_port(self, authenticated_client, user, patched_docker_service, fake_container):
+        existing_server = ServerInstanceFactory(
+            owner=user,
+            port=25572,
+            status=ServerInstance.RUNNING,
+            container_id=fake_container.id,
+        )
+        server = ServerInstanceFactory(owner=user, port=25572, status=ServerInstance.CREATED)
+
+        url = reverse("server-start", kwargs={"pk": server.id})
+        with patch(
+            "docker_manager.tasks.start_server_task.delay",
+            lambda server_id, user_id=None: None,
+        ):
+            response = authenticated_client.post(url)
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "port" in response.data["error"]
+        assert str(existing_server.id) in response.data["error"]
+
+    def test_start_server_with_used_additional_port(self, authenticated_client, user, patched_docker_service, fake_container):
+        ServerInstanceFactory(
+            owner=user,
+            port=25573,
+            additional_ports={"27015": 27018},
+            status=ServerInstance.RUNNING,
+            container_id=fake_container.id,
+        )
+        server = ServerInstanceFactory(
+            owner=user,
+            port=25574,
+            additional_ports={"27015": 27018},
+            status=ServerInstance.CREATED,
+        )
+
+        url = reverse("server-start", kwargs={"pk": server.id})
+        with patch(
+            "docker_manager.tasks.start_server_task.delay",
+            lambda server_id, user_id=None: None,
+        ):
+            response = authenticated_client.post(url)
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "port" in response.data["error"]
+
+    def test_start_server_with_port_used_as_additional(self, authenticated_client, user, patched_docker_service, fake_container):
+        ServerInstanceFactory(
+            owner=user,
+            port=25575,
+            additional_ports={"27015": 27019},
+            status=ServerInstance.RUNNING,
+            container_id=fake_container.id,
+        )
+        server = ServerInstanceFactory(owner=user, port=27019, status=ServerInstance.CREATED)
+
+        url = reverse("server-start", kwargs={"pk": server.id})
+        with patch(
+            "docker_manager.tasks.start_server_task.delay",
+            lambda server_id, user_id=None: None,
+        ):
+            response = authenticated_client.post(url)
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "port" in response.data["error"]
+
+    def test_start_server_with_stopped_port_allowed(self, authenticated_client, user, patched_docker_service, fake_container):
+        ServerInstanceFactory(owner=user, port=25576, status=ServerInstance.STOPPED)
+        server = ServerInstanceFactory(
+            owner=user,
+            port=25576,
+            status=ServerInstance.CREATED,
+            container_id=fake_container.id,
+        )
+
+        url = reverse("server-start", kwargs={"pk": server.id})
+        with patch(
+            "docker_manager.tasks.start_server_task.delay",
+            lambda server_id, user_id=None: None,
+        ):
+            response = authenticated_client.post(url)
+
+        assert response.status_code == status.HTTP_200_OK
+
+    def test_start_server_with_container_id_but_stopped(self, authenticated_client, user, patched_docker_service, fake_container):
+        ServerInstanceFactory(
+            owner=user,
+            port=25577,
+            status=ServerInstance.STOPPED,
+            container_id=fake_container.id,
+        )
+        server = ServerInstanceFactory(owner=user, port=25577, status=ServerInstance.CREATED)
+
+        url = reverse("server-start", kwargs={"pk": server.id})
+        with patch(
+            "docker_manager.tasks.start_server_task.delay",
+            lambda server_id, user_id=None: None,
+        ):
+            response = authenticated_client.post(url)
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "port" in response.data["error"]
 
 
 @pytest.mark.django_db

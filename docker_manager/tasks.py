@@ -323,11 +323,7 @@ def check_auto_update_servers():
         for server in servers:
             try:
                 # Check if there is a newer recommended version
-                recommended = (
-                    GameVersion.objects.filter(game=server.game, is_recommended=True, is_stable=True)
-                    .order_by("-release_date")
-                    .first()
-                )
+                recommended = GameVersion.objects.filter(game=server.game).order_by("-release_date").first()
 
                 if recommended and recommended != server.game_version:
                     beat_logger.info(f"[docker_manager] Auto-updating {server.name} to {recommended.version}")

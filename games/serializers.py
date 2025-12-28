@@ -12,9 +12,6 @@ class GameVersionSerializer(serializers.ModelSerializer):
             "id",
             "version",
             "release_date",
-            "is_stable",
-            "is_recommended",
-            "changelog",
             "created_at",
             "docker_tag",
             "game_id",
@@ -23,9 +20,6 @@ class GameVersionSerializer(serializers.ModelSerializer):
 
 
 class GameSerializer(serializers.ModelSerializer):
-    versions_count = serializers.SerializerMethodField()
-    latest_version = serializers.SerializerMethodField()
-
     class Meta:
         model = Game
         fields = [
@@ -39,20 +33,9 @@ class GameSerializer(serializers.ModelSerializer):
             "additional_ports",
             "documentation_url",
             "is_active",
-            "versions_count",
-            "latest_version",
             "created_at",
         ]
         read_only_fields = ["id", "created_at"]
-
-    def get_versions_count(self, obj):
-        return obj.versions.count()
-
-    def get_latest_version(self, obj):
-        version = obj.versions.filter(is_stable=True).first()
-        if version:
-            return GameVersionSerializer(version).data
-        return None
 
 
 class GameDetailSerializer(GameSerializer):

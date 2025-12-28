@@ -275,6 +275,23 @@ class ServerInstanceCreateSerializer(serializers.ModelSerializer):
     def validate(self, data):
         if data["game_version"].game != data["game"]:
             raise serializers.ValidationError("Game version and game do not match")
+
+        port = data.get("port")
+        additional_ports = data.get("additional_ports", {})
+
+        if port:
+            is_available, conflicting_server, conflicting_port = ServerInstance.is_port_available(
+                port=port, additional_ports=additional_ports
+            )
+
+            if not is_available:
+                raise serializers.ValidationError(
+                    {
+                        "port": f"Le port {conflicting_port} est déjà utilisé par le serveur '{conflicting_server.name}' "
+                        f"(ID: {conflicting_server.id})"
+                    }
+                )
+
         return data
 
     def create(self, validated_data):
@@ -313,9 +330,31 @@ class ServerInstanceUpdateSerializer(serializers.ModelSerializer):
             "backup_enabled",
             "is_public",
             "port",
+            "additional_ports",
             "status",
             "configuration",
         ]
+
+    def validate(self, data):
+        port = data.get("port")
+        additional_ports = data.get("additional_ports")
+
+        if port is not None:
+            is_available, conflicting_server, conflicting_port = ServerInstance.is_port_available(
+                port=port,
+                additional_ports=additional_ports,
+                exclude_server_id=self.instance.id if self.instance else None,
+            )
+
+            if not is_available:
+                raise serializers.ValidationError(
+                    {
+                        "port": f"Le port {conflicting_port} est déjà utilisé par le serveur '{conflicting_server.name}' "
+                        f"(ID: {conflicting_server.id})"
+                    }
+                )
+
+        return data
 
     def update(self, instance, validated_data):
         configuration_data = validated_data.pop("configuration", None)

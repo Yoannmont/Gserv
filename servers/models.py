@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.db import models
+from django.db.models import Q
 
 from games.models import Game, GameVersion
 
@@ -42,9 +43,15 @@ class ServerInstance(models.Model):
         verbose_name="Propriétaire",
     )
     description = models.TextField(blank=True, verbose_name="Description")
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=CREATING, verbose_name="Statut")
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=CREATING,
+        verbose_name="Statut",
+        db_index=True,
+    )
     container_id = models.CharField(max_length=64, blank=True, null=True, verbose_name="ID du conteneur Docker")
-    port = models.IntegerField(verbose_name="Port", help_text="Port externe du serveur")
+    port = models.IntegerField(verbose_name="Port", help_text="Port externe du serveur", db_index=True)
     additional_ports = models.JSONField(
         default=dict,
         blank=True,
@@ -55,7 +62,7 @@ class ServerInstance(models.Model):
     auto_start = models.BooleanField(default=False, verbose_name="Démarrage automatique")
     auto_update = models.BooleanField(default=False, verbose_name="Mise à jour automatique")
     backup_enabled = models.BooleanField(default=True, verbose_name="Sauvegardes activées")
-    is_public = models.BooleanField(default=False, verbose_name="Serveur public")
+    is_public = models.BooleanField(default=False, verbose_name="Serveur public", db_index=True)
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Date de création")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Dernière modification")
     last_started_at = models.DateTimeField(null=True, blank=True, verbose_name="Dernier démarrage")
@@ -95,6 +102,78 @@ class ServerInstance(models.Model):
                 mappings[f"{game_port}/{protocol}"] = host_port
 
         return mappings
+
+    def get_all_host_ports(self):
+        """Return all host ports used by this server (main port + additional ports)"""
+        ports = [self.port]
+
+        if self.additional_ports:
+            for host_port in self.additional_ports.values():
+                if isinstance(host_port, int):
+                    ports.append(host_port)
+
+        return ports
+
+    @classmethod
+    def is_port_available(cls, port, additional_ports=None, exclude_server_id=None):
+        """
+        Check if a port (or ports) is available for use.
+
+        Args:
+            port: Main port to check
+            additional_ports: Dict of additional ports to check (optional)
+            exclude_server_id: Server ID to exclude from the check (for updates)
+
+        Returns:
+            tuple: (is_available: bool, conflicting_server: ServerInstance or None, conflicting_port: int or None)
+        """
+        active_statuses = [
+            cls.CREATING,
+            cls.CREATED,
+            cls.STARTING,
+            cls.RUNNING,
+            cls.UPDATING,
+        ]
+
+        active_servers = queryset = cls.objects.filter(Q(status__in=active_statuses) | Q(container_id__isnull=False))
+
+        queryset = active_servers.filter(port=port)
+
+        if exclude_server_id:
+            queryset = queryset.exclude(id=exclude_server_id)
+
+        conflicting_server = queryset.first()
+        if conflicting_server:
+            return False, conflicting_server, port
+
+        for server in active_servers:
+            if server.additional_ports:
+                for server_host_port in server.additional_ports.values():
+                    if isinstance(server_host_port, int) and server_host_port == port:
+                        return False, server, server_host_port
+
+        if additional_ports:
+            for host_port in additional_ports.values():
+                if isinstance(host_port, int):
+                    queryset = active_servers.filter(port=host_port)
+                    if exclude_server_id:
+                        queryset = queryset.exclude(id=exclude_server_id)
+
+                    conflicting_server = queryset.first()
+                    if conflicting_server:
+                        return False, conflicting_server, host_port
+
+                    queryset = active_servers
+                    if exclude_server_id:
+                        queryset = queryset.exclude(id=exclude_server_id)
+
+                    for server in queryset:
+                        if server.additional_ports:
+                            for server_host_port in server.additional_ports.values():
+                                if isinstance(server_host_port, int) and server_host_port == host_port:
+                                    return False, server, server_host_port
+
+        return True, None, None
 
 
 class ServerConfiguration(models.Model):
@@ -152,7 +231,12 @@ class ServerStatus(models.Model):
         related_name="status_history",
         verbose_name="Serveur",
     )
-    status = models.CharField(max_length=20, choices=ServerInstance.STATUS_CHOICES, verbose_name="Statut")
+    status = models.CharField(
+        max_length=20,
+        choices=ServerInstance.STATUS_CHOICES,
+        verbose_name="Statut",
+        db_index=True,
+    )
     message = models.TextField(blank=True, verbose_name="Message")
     triggered_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -206,6 +290,7 @@ class ServerRole(models.Model):
         default=ROLE_VIEWER,
         verbose_name="Rôle",
         help_text="Niveau de permission pour gérer ce serveur",
+        db_index=True,
     )
     can_view = models.BooleanField(default=True, verbose_name="Peut visualiser")
     can_edit = models.BooleanField(default=False, verbose_name="Peut modifier les paramètres")
