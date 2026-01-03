@@ -1,0 +1,16 @@
+.github
+__pycache__
+.pytest_cache
+.ruff_cache
+.vscode
+tests
+.env.example
+media
+static
+README.md
+celerybeat-schedule
+htmlcov
+logs
+.coverage
+assets
+migrations

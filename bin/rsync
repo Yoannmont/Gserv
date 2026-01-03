@@ -1,0 +1,9 @@
+#!/bin/bash
+
+# sync to prod server
+
+rsync -e ssh \
+-avrz \
+--exclude-from=.rsyncignore \
+--delete-after \
+$@
