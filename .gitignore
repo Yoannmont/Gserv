@@ -1,5 +1,6 @@
 .env.dev
 .env.prod
+.env.preview
 env
 .venv
 

@@ -300,6 +300,12 @@ class Dev(Configuration):
     # region Server --------------------------------------------------------------------------------------
     SERVER_STOP_TIMEOUT = values.IntegerValue(default=25)
     SERVER_RESTART_TIMEOUT = values.IntegerValue(default=25)
+    MAX_MEMORY_GLOBAL = values.Value(
+        default=None,
+        help_text="Mémoire maximale globale (ex: 16g, 32g)",
+        environ_prefix=None,
+    )
+    MAX_CPU_GLOBAL = values.FloatValue(default=None, help_text="CPU maximal global (ex: 8.0)", environ_prefix=None)
     # endregion
 
     # region swagger --------------------------------------------------------------------------------------
@@ -311,7 +317,7 @@ class Prod(Dev):
     # region Basic Django --------------------------------------------------------------------------------------
     DOTENV = BASE_DIR / ".env.prod"
     SECRET_KEY = values.Value(environ_required=True)
-    DEBUG = False
+    DEBUG = values.BooleanValue(default=False)
     ALLOWED_HOSTS = values.ListValue(environ_required=True)
 
     SECURE_SSL_REDIRECT = values.BooleanValue(default=True)
