@@ -12,14 +12,16 @@ schema_view = get_schema_view(
         default_version="v1",
         description="API documentation for Gserv game server management platform",
     ),
-    public=True,
-    permission_classes=(permissions.AllowAny,),
+    public=False,
+    permission_classes=(permissions.IsAuthenticated,),
 )
 
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/", include("api.urls")),
-    path("swagger<format>/", schema_view.without_ui(cache_timeout=0), name="schema-json"),
+    path(
+        "swagger<format>/", schema_view.without_ui(cache_timeout=0), name="schema-json"
+    ),
     path(
         "swagger/",
         schema_view.with_ui("swagger", cache_timeout=0),
