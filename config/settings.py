@@ -306,7 +306,9 @@ class Dev(Configuration):
         help_text="Mémoire maximale globale (ex: 16g, 32g)",
         environ_prefix=None,
     )
-    MAX_CPU_GLOBAL = values.FloatValue(default=None, help_text="CPU maximal global (ex: 8.0)", environ_prefix=None)
+    MAX_CPU_GLOBAL = values.FloatValue(
+        default=None, help_text="CPU maximal global (ex: 8.0)", environ_prefix=None
+    )
     # endregion
 
     # region swagger --------------------------------------------------------------------------------------
@@ -314,14 +316,16 @@ class Dev(Configuration):
     # endregion
 
     # region Admin IP Restriction --------------------------------------------------------------------------------------
-    ADMIN_IP_RESTRICTION_DISABLED_IN_DEBUG = values.BooleanValue(default=True, environ_prefix=None)
+    ADMIN_IP_RESTRICTION_DISABLED_IN_DEBUG = values.BooleanValue(
+        default=True, environ_prefix=None
+    )
     # endregion
 
 
 class Prod(Dev):
     # region Basic Django --------------------------------------------------------------------------------------
     DOTENV = BASE_DIR / ".env.prod"
-    SECRET_KEY = values.Value(environ_required=True)
+    SECRET_KEY = str(values.SecretValue())
     DEBUG = values.BooleanValue(default=False)
     ALLOWED_HOSTS = values.ListValue(environ_required=True)
 
