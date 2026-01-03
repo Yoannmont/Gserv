@@ -314,7 +314,6 @@ class Dev(Configuration):
     # endregion
 
     # region Admin IP Restriction --------------------------------------------------------------------------------------
-    # Désactiver la restriction IP en développement (utile pour les tests locaux)
     ADMIN_IP_RESTRICTION_DISABLED_IN_DEBUG = values.BooleanValue(default=True, environ_prefix=None)
     # endregion
 
