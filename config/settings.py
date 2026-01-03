@@ -320,9 +320,10 @@ class Prod(Dev):
     DEBUG = values.BooleanValue(default=False)
     ALLOWED_HOSTS = values.ListValue(environ_required=True)
 
-    SECURE_SSL_REDIRECT = values.BooleanValue(default=True)
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
+    SECURE_SSL_REDIRECT = values.BooleanValue(default=True, environ_prefix=None)
+    SESSION_COOKIE_SECURE = values.BooleanValue(default=True, environ_prefix=None)
+    CSRF_COOKIE_SECURE = values.BooleanValue(default=True, environ_prefix=None)
+    CSRF_TRUSTED_ORIGINS = values.ListValue(environ_required=True, environ_prefix=None)
     SECURE_BROWSER_XSS_FILTER = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
     X_FRAME_OPTIONS = "DENY"
@@ -548,6 +549,10 @@ class Prod(Dev):
         },
     }
     # endregion
+
+
+class Preview(Prod):
+    DOTENV = BASE_DIR / ".env.preview"
 
 
 class Test(Dev):
