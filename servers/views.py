@@ -157,7 +157,7 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
             logger.warning(f"[servers_instance_create] Validation error name={name} errors={e.detail}")
             return Response(
                 {"error": "Erreur de validation", "details": e.detail},
-                status=status.HTTP_400_BAD_REQUEST,
+                status=(status.HTTP_409_CONFLICT if "port" in e.detail else status.HTTP_400_BAD_REQUEST),
             )
         except IntegrityError as e:
             logger.error(f"[servers_instance_create] Integrity error name={name} error={str(e)}")
@@ -282,6 +282,9 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
         The server status will be updated to STARTING, and a background task
         will handle the actual Docker container startup.
 
+        Request Body:
+            force (bool, optional): If True, bypass resource limit checks
+
         Returns:
             Response with success message or error if server is already running
         """
@@ -311,7 +314,26 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
                         "error": f"Le port {server.port} est déjà utilisé par le serveur '{conflicting_server.name}' "
                         f"(ID: {conflicting_server.id})"
                     },
-                    status=status.HTTP_400_BAD_REQUEST,
+                    status=status.HTTP_409_CONFLICT,
+                )
+
+            force = request.data.get("force", False)
+            config = server.configuration if hasattr(server, "configuration") else None
+            memory_limit = config.memory_limit if config else "2g"
+            cpu_limit = config.cpu_limit if config else 2.0
+
+            is_available, error_message = ServerInstance.check_resources_available(
+                memory_limit=memory_limit,
+                cpu_limit=cpu_limit,
+                exclude_server_id=server.id,
+                force=force,
+            )
+
+            if not is_available:
+                logger.warning(f"[servers_instance_start] Resource limit exceeded id={pk} error={error_message}")
+                return Response(
+                    {"error": error_message},
+                    status=status.HTTP_429_TOO_MANY_REQUESTS,
                 )
 
             start_server_task.delay(server.pk, request.user.id)

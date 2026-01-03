@@ -252,6 +252,7 @@ class ServerInstanceDetailSerializer(serializers.ModelSerializer):
 
 class ServerInstanceCreateSerializer(serializers.ModelSerializer):
     configuration = ServerConfigurationSerializer(required=False)
+    force = serializers.BooleanField(write_only=True, required=False, default=False)
 
     class Meta:
         model = ServerInstance
@@ -269,6 +270,7 @@ class ServerInstanceCreateSerializer(serializers.ModelSerializer):
             "backup_enabled",
             "is_public",
             "configuration",
+            "force",
         ]
         read_only_fields = ["id"]
 
@@ -292,9 +294,24 @@ class ServerInstanceCreateSerializer(serializers.ModelSerializer):
                     }
                 )
 
+        configuration_data = data.get("configuration", {})
+        memory_limit = configuration_data.get("memory_limit", "2g")
+        cpu_limit = configuration_data.get("cpu_limit", 2.0)
+        force = data.get("force", False)
+
+        is_available, error_message = ServerInstance.check_resources_available(
+            memory_limit=memory_limit,
+            cpu_limit=cpu_limit,
+            force=force,
+        )
+
+        if not is_available:
+            raise serializers.ValidationError({"resources": error_message})
+
         return data
 
     def create(self, validated_data):
+        validated_data.pop("force", None)
         configuration_data = validated_data.pop("configuration", None)
         owner = self.context["request"].user
         default_configuration = {

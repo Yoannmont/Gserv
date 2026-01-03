@@ -381,7 +381,7 @@ class TestPortValidation:
 
         response = authenticated_client.post(url, data, format="json")
 
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.status_code == status.HTTP_409_CONFLICT
         assert "port" in response.data["details"]
         assert str(existing_server.id) in response.data["details"]["port"][0]
 
@@ -413,7 +413,7 @@ class TestPortValidation:
 
         response = authenticated_client.post(url, data, format="json")
 
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.status_code == status.HTTP_409_CONFLICT
         assert "port" in response.data["details"]
 
     def test_create_server_with_used_port_creating(
@@ -444,7 +444,7 @@ class TestPortValidation:
 
         response = authenticated_client.post(url, data, format="json")
 
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.status_code == status.HTTP_409_CONFLICT
         assert "port" in response.data["details"]
 
     def test_create_server_with_used_additional_port(
@@ -477,7 +477,7 @@ class TestPortValidation:
 
         response = authenticated_client.post(url, data, format="json")
 
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.status_code == status.HTTP_409_CONFLICT
         assert "port" in response.data["details"]
 
     def test_create_server_with_port_used_as_additional(
@@ -509,7 +509,7 @@ class TestPortValidation:
 
         response = authenticated_client.post(url, data, format="json")
 
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.status_code == status.HTTP_409_CONFLICT
         assert "port" in response.data["details"]
 
     def test_create_server_with_stopped_port_allowed(
@@ -553,7 +553,7 @@ class TestPortValidation:
         ):
             response = authenticated_client.post(url)
 
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.status_code == status.HTTP_409_CONFLICT
         assert "port" in response.data["error"]
         assert str(existing_server.id) in response.data["error"]
 
@@ -579,7 +579,7 @@ class TestPortValidation:
         ):
             response = authenticated_client.post(url)
 
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.status_code == status.HTTP_409_CONFLICT
         assert "port" in response.data["error"]
 
     def test_start_server_with_port_used_as_additional(self, authenticated_client, user, patched_docker_service, fake_container):
@@ -599,7 +599,7 @@ class TestPortValidation:
         ):
             response = authenticated_client.post(url)
 
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.status_code == status.HTTP_409_CONFLICT
         assert "port" in response.data["error"]
 
     def test_start_server_with_stopped_port_allowed(self, authenticated_client, user, patched_docker_service, fake_container):
@@ -636,7 +636,7 @@ class TestPortValidation:
         ):
             response = authenticated_client.post(url)
 
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.status_code == status.HTTP_409_CONFLICT
         assert "port" in response.data["error"]
 
 
@@ -675,3 +675,291 @@ class TestPermissions:
         response = api_client.post(url, data, format="json")
 
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+
+@pytest.mark.django_db
+class TestResourceValidation:
+    def test_create_server_exceeds_memory_limit(
+        self,
+        authenticated_client,
+        user,
+        patched_docker_service,
+        fake_container,
+        prepare_servers_data_path,
+        settings,
+    ):
+        settings.MAX_MEMORY_GLOBAL = "4g"
+        game = GameFactory()
+        version = GameVersionFactory(game=game)
+        other_user = UserFactory()
+        ServerInstanceFactory(
+            owner=other_user,
+            port=30000,
+            status=ServerInstance.RUNNING,
+            container_id=fake_container.id,
+        )
+        from servers.tests.servers_factories import ServerConfigurationFactory
+
+        ServerConfigurationFactory(server=ServerInstance.objects.first(), memory_limit="3g")
+
+        url = reverse("server-list")
+        data = {
+            "name": "New Server",
+            "game": game.id,
+            "game_version": version.id,
+            "port": 30001,
+            "configuration": {"memory_limit": "2g", "cpu_limit": 2.0},
+        }
+
+        response = authenticated_client.post(url, data, format="json")
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "resources" in response.data["details"]
+        assert "mémoire" in response.data["details"]["resources"][0].lower()
+
+    def test_create_server_exceeds_cpu_limit(
+        self,
+        authenticated_client,
+        user,
+        patched_docker_service,
+        fake_container,
+        prepare_servers_data_path,
+        settings,
+    ):
+        settings.MAX_CPU_GLOBAL = 4.0
+        game = GameFactory()
+        version = GameVersionFactory(game=game)
+        other_user = UserFactory()
+        ServerInstanceFactory(
+            owner=other_user,
+            port=30002,
+            status=ServerInstance.RUNNING,
+            container_id=fake_container.id,
+        )
+        from servers.tests.servers_factories import ServerConfigurationFactory
+
+        ServerConfigurationFactory(server=ServerInstance.objects.first(), cpu_limit=3.0)
+
+        url = reverse("server-list")
+        data = {
+            "name": "New Server",
+            "game": game.id,
+            "game_version": version.id,
+            "port": 30003,
+            "configuration": {"memory_limit": "2g", "cpu_limit": 2.0},
+        }
+
+        response = authenticated_client.post(url, data, format="json")
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "resources" in response.data["details"]
+        assert "cpu" in response.data["details"]["resources"][0].lower()
+
+    def test_create_server_with_force_bypasses_limit(
+        self,
+        authenticated_client,
+        user,
+        patched_docker_service,
+        fake_container,
+        prepare_servers_data_path,
+        settings,
+    ):
+        settings.MAX_MEMORY_GLOBAL = "4g"
+        game = GameFactory()
+        version = GameVersionFactory(game=game)
+        other_user = UserFactory()
+        ServerInstanceFactory(
+            owner=other_user,
+            port=30004,
+            status=ServerInstance.RUNNING,
+            container_id=fake_container.id,
+        )
+        from servers.tests.servers_factories import ServerConfigurationFactory
+
+        ServerConfigurationFactory(server=ServerInstance.objects.first(), memory_limit="3g")
+
+        url = reverse("server-list")
+        data = {
+            "name": "New Server",
+            "game": game.id,
+            "game_version": version.id,
+            "port": 30005,
+            "configuration": {"memory_limit": "2g", "cpu_limit": 2.0},
+            "force": True,
+        }
+
+        response = authenticated_client.post(url, data, format="json")
+
+        assert response.status_code == status.HTTP_201_CREATED
+
+    def test_start_server_exceeds_memory_limit(
+        self,
+        authenticated_client,
+        user,
+        patched_docker_service,
+        fake_container,
+        settings,
+    ):
+        settings.MAX_MEMORY_GLOBAL = "4g"
+        other_user = UserFactory()
+        ServerInstanceFactory(
+            owner=other_user,
+            port=30006,
+            status=ServerInstance.RUNNING,
+            container_id=fake_container.id,
+        )
+        from servers.tests.servers_factories import ServerConfigurationFactory
+
+        ServerConfigurationFactory(server=ServerInstance.objects.first(), memory_limit="3g")
+        server = ServerInstanceFactory(owner=user, port=30007, status=ServerInstance.CREATED)
+        ServerConfigurationFactory(server=server, memory_limit="2g")
+
+        url = reverse("server-start", kwargs={"pk": server.id})
+        with patch(
+            "docker_manager.tasks.start_server_task.delay",
+            lambda server_id, user_id=None: None,
+        ):
+            response = authenticated_client.post(url)
+
+        assert response.status_code == status.HTTP_429_TOO_MANY_REQUESTS
+        assert "mémoire" in response.data["error"].lower()
+
+    def test_start_server_exceeds_cpu_limit(
+        self,
+        authenticated_client,
+        user,
+        patched_docker_service,
+        fake_container,
+        settings,
+    ):
+        settings.MAX_CPU_GLOBAL = 4.0
+        other_user = UserFactory()
+        ServerInstanceFactory(
+            owner=other_user,
+            port=30008,
+            status=ServerInstance.RUNNING,
+            container_id=fake_container.id,
+        )
+        from servers.tests.servers_factories import ServerConfigurationFactory
+
+        ServerConfigurationFactory(server=ServerInstance.objects.first(), cpu_limit=3.0)
+        server = ServerInstanceFactory(owner=user, port=30009, status=ServerInstance.CREATED)
+        ServerConfigurationFactory(server=server, cpu_limit=2.0)
+
+        url = reverse("server-start", kwargs={"pk": server.id})
+        with patch(
+            "docker_manager.tasks.start_server_task.delay",
+            lambda server_id, user_id=None: None,
+        ):
+            response = authenticated_client.post(url)
+
+        assert response.status_code == status.HTTP_429_TOO_MANY_REQUESTS
+        assert "cpu" in response.data["error"].lower()
+
+    def test_start_server_with_force_bypasses_limit(
+        self,
+        authenticated_client,
+        user,
+        patched_docker_service,
+        fake_container,
+        settings,
+    ):
+        settings.MAX_MEMORY_GLOBAL = "4g"
+        other_user = UserFactory()
+        ServerInstanceFactory(
+            owner=other_user,
+            port=30010,
+            status=ServerInstance.RUNNING,
+            container_id=fake_container.id,
+        )
+        from servers.tests.servers_factories import ServerConfigurationFactory
+
+        ServerConfigurationFactory(server=ServerInstance.objects.first(), memory_limit="3g")
+        server = ServerInstanceFactory(
+            owner=user,
+            port=30011,
+            status=ServerInstance.CREATED,
+            container_id=fake_container.id,
+        )
+        ServerConfigurationFactory(server=server, memory_limit="2g")
+
+        url = reverse("server-start", kwargs={"pk": server.id})
+        with patch(
+            "docker_manager.tasks.start_server_task.delay",
+            lambda server_id, user_id=None: None,
+        ):
+            response = authenticated_client.post(url, data={"force": True}, format="json")
+
+        assert response.status_code == status.HTTP_200_OK
+
+    def test_create_server_within_limits_allowed(
+        self,
+        authenticated_client,
+        user,
+        patched_docker_service,
+        fake_container,
+        prepare_servers_data_path,
+        settings,
+    ):
+        settings.MAX_MEMORY_GLOBAL = "8g"
+        settings.MAX_CPU_GLOBAL = 8.0
+        game = GameFactory()
+        version = GameVersionFactory(game=game)
+        ServerInstanceFactory(
+            owner=user,
+            port=30012,
+            status=ServerInstance.RUNNING,
+            container_id=fake_container.id,
+        )
+        from servers.tests.servers_factories import ServerConfigurationFactory
+
+        ServerConfigurationFactory(server=ServerInstance.objects.first(), memory_limit="2g", cpu_limit=2.0)
+
+        url = reverse("server-list")
+        data = {
+            "name": "New Server",
+            "game": game.id,
+            "game_version": version.id,
+            "port": 30013,
+            "configuration": {"memory_limit": "2g", "cpu_limit": 2.0},
+        }
+
+        response = authenticated_client.post(url, data, format="json")
+
+        assert response.status_code == status.HTTP_201_CREATED
+
+    def test_start_server_within_limits_allowed(
+        self,
+        authenticated_client,
+        user,
+        patched_docker_service,
+        fake_container,
+        settings,
+    ):
+        settings.MAX_MEMORY_GLOBAL = "8g"
+        settings.MAX_CPU_GLOBAL = 8.0
+        ServerInstanceFactory(
+            owner=user,
+            port=30014,
+            status=ServerInstance.RUNNING,
+            container_id=fake_container.id,
+        )
+        from servers.tests.servers_factories import ServerConfigurationFactory
+
+        ServerConfigurationFactory(server=ServerInstance.objects.first(), memory_limit="2g", cpu_limit=2.0)
+        server = ServerInstanceFactory(
+            owner=user,
+            port=30015,
+            status=ServerInstance.CREATED,
+            container_id=fake_container.id,
+        )
+        ServerConfigurationFactory(server=server, memory_limit="2g", cpu_limit=2.0)
+
+        url = reverse("server-start", kwargs={"pk": server.id})
+        with patch(
+            "docker_manager.tasks.start_server_task.delay",
+            lambda server_id, user_id=None: None,
+        ):
+            response = authenticated_client.post(url)
+
+        assert response.status_code == status.HTTP_200_OK

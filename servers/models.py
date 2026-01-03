@@ -1,3 +1,5 @@
+import re
+
 from django.conf import settings
 from django.db import models
 from django.db.models import Q
@@ -27,6 +29,8 @@ class ServerInstance(models.Model):
         (UPDATING, "Mise à jour"),
         (ERROR, "Erreur"),
     ]
+
+    ACTIVE_STATUS = [CREATING, CREATED, STARTING, RUNNING, UPDATING]
 
     name = models.CharField(max_length=100, verbose_name="Nom du serveur")
     game = models.ForeignKey(Game, on_delete=models.PROTECT, related_name="servers", verbose_name="Jeu")
@@ -127,15 +131,7 @@ class ServerInstance(models.Model):
         Returns:
             tuple: (is_available: bool, conflicting_server: ServerInstance or None, conflicting_port: int or None)
         """
-        active_statuses = [
-            cls.CREATING,
-            cls.CREATED,
-            cls.STARTING,
-            cls.RUNNING,
-            cls.UPDATING,
-        ]
-
-        active_servers = queryset = cls.objects.filter(Q(status__in=active_statuses) | Q(container_id__isnull=False))
+        active_servers = queryset = cls.objects.filter(Q(status__in=cls.ACTIVE_STATUS) | Q(container_id__isnull=False))
 
         queryset = active_servers.filter(port=port)
 
@@ -174,6 +170,113 @@ class ServerInstance(models.Model):
                                     return False, server, server_host_port
 
         return True, None, None
+
+    @staticmethod
+    def parse_memory(memory_str):
+        """
+        Parse memory string (e.g., "2g", "512m", "4g") to bytes.
+
+        Args:
+            memory_str: Memory string (e.g., "2g", "512m")
+
+        Returns:
+            int: Memory in bytes
+        """
+        if not memory_str:
+            return 0
+
+        memory_str = memory_str.lower().strip()
+        match = re.match(r"^(\d+(?:\.\d+)?)\s*([kmgt]?)$", memory_str)
+
+        if not match:
+            raise ValueError(f"Invalid memory format: {memory_str}")
+
+        value = float(match.group(1))
+        unit = match.group(2) or ""
+
+        multipliers = {"": 1, "k": 1024, "m": 1024**2, "g": 1024**3, "t": 1024**4}
+        return int(value * multipliers.get(unit, 1))
+
+    @classmethod
+    def get_global_resources(cls, exclude_server_id=None):
+        """
+        Calculate total resources (memory and CPU) used by all active servers.
+
+        Args:
+            exclude_server_id: Server ID to exclude from calculation (optional)
+
+        Returns:
+            tuple: (total_memory_bytes: int, total_cpu: float)
+        """
+        queryset = cls.objects.filter(status__in=cls.ACTIVE_STATUS)
+
+        if exclude_server_id:
+            queryset = queryset.exclude(id=exclude_server_id)
+
+        total_memory_bytes = 0
+        total_cpu = 0.0
+
+        for server in queryset.select_related("configuration"):
+            if hasattr(server, "configuration"):
+                config = server.configuration
+                try:
+                    total_memory_bytes += cls.parse_memory(config.memory_limit)
+                except (ValueError, AttributeError):
+                    pass
+                total_cpu += config.cpu_limit
+
+        return total_memory_bytes, total_cpu
+
+    @classmethod
+    def check_resources_available(cls, memory_limit, cpu_limit, exclude_server_id=None, force=False):
+        """
+        Check if adding a server with given resources would exceed global limits.
+
+        Args:
+            memory_limit: Memory limit string (e.g., "2g")
+            cpu_limit: CPU limit (float)
+            exclude_server_id: Server ID to exclude from calculation (optional)
+            force: If True, skip resource check
+
+        Returns:
+            tuple: (is_available: bool, error_message: str or None)
+        """
+        if force:
+            return True, None
+
+        try:
+            new_memory_bytes = cls.parse_memory(memory_limit)
+        except ValueError as e:
+            return False, f"Format de mémoire invalide: {str(e)}"
+
+        max_memory_global = getattr(settings, "MAX_MEMORY_GLOBAL", None)
+        max_cpu_global = getattr(settings, "MAX_CPU_GLOBAL", None)
+
+        if not max_memory_global and not max_cpu_global:
+            return True, None
+
+        global_memory, global_cpu = cls.get_global_resources(exclude_server_id=exclude_server_id)
+        total_global_memory = global_memory + new_memory_bytes
+        total_global_cpu = global_cpu + cpu_limit
+
+        if max_memory_global:
+            try:
+                max_memory_bytes = cls.parse_memory(max_memory_global)
+                if total_global_memory > max_memory_bytes:
+                    return False, (
+                        f"Limite de mémoire globale dépassée: "
+                        f"{total_global_memory / (1024**3):.2f}GB utilisés sur {max_memory_bytes / (1024**3):.2f}GB maximum"
+                    )
+            except ValueError:
+                pass
+
+        if max_cpu_global:
+            if total_global_cpu > max_cpu_global:
+                return False, (
+                    f"Limite de CPU globale dépassée: {total_global_cpu:.2f} CPU utilisés sur {max_cpu_global:.2f} maximum"
+                )
+
+        return True, None
 
 
 class ServerConfiguration(models.Model):

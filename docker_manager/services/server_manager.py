@@ -273,48 +273,6 @@ class ServerManager:
         except DockerServiceError:
             return {}
 
-    def get_server_logs(self, server_instance, tail: int = 100) -> str:
-        """
-        Get server logs
-
-        Args:
-            server_instance: ServerInstance instance
-            tail: Number of lines
-
-        Returns:
-            Server logs
-        """
-        try:
-            if not server_instance.container_id:
-                return "No associated container"
-
-            return self.docker_service.get_container_logs(server_instance.container_id, tail=tail)
-
-        except DockerServiceError as e:
-            logger.error("[server_manager] Error during server logs retrieval: %r", e)
-            return f"Erreur lors de la récupération des logs: {e}"
-
-    def execute_command(self, server_instance, command: str) -> str:
-        """
-        Execute a command in the server
-
-        Args:
-            server_instance: ServerInstance instance
-            command: Command to execute
-
-        Returns:
-            Command output
-        """
-        try:
-            if not server_instance.container_id:
-                raise ValueError("Server has no container_id")
-
-            return self.docker_service.execute_command(server_instance.container_id, command)
-
-        except DockerServiceError as e:
-            logger.error("[server_manager] Error during command execution: %r", e)
-            raise
-
     def check_server_health(self, server_instance) -> str:
         """
         Check server health using health check command or container status

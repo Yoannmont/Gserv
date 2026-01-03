@@ -136,7 +136,7 @@ class DockerService:
             return True
         except docker.errors.NotFound:
             logger.error(f"[docker_service] Container {container_id} not found")
-            raise DockerServiceError(f"Conteneur {container_id} introuvable")
+            raise
         except docker.errors.APIError as e:
             logger.error("[docker_service] Error during container start: %r", e)
             raise DockerServiceError(f"[docker_service] Error during container start: {e}")
@@ -159,7 +159,7 @@ class DockerService:
             return True
         except docker.errors.NotFound:
             logger.error(f"[docker_service] Container {container_id} not found")
-            raise DockerServiceError(f"[docker_service] Container {container_id} not found")
+            raise
         except docker.errors.APIError as e:
             logger.error("[docker_service] Error during container stop: %r", e)
             raise DockerServiceError(f"[docker_service] Error during container stop: {e}")
@@ -182,7 +182,7 @@ class DockerService:
             return True
         except docker.errors.NotFound:
             logger.error(f"[docker_service] Container {container_id} not found")
-            raise DockerServiceError(f"[docker_service] Container {container_id} not found")
+            raise
         except docker.errors.APIError as e:
             logger.error("[docker_service] Error during container restart: %r", e)
             raise DockerServiceError(f"[docker_service] Error during container restart: {e}")
@@ -265,7 +265,7 @@ class DockerService:
                 "network_tx": (stats["networks"]["eth0"]["tx_bytes"] if "networks" in stats else 0),
             }
         except docker.errors.NotFound:
-            raise DockerServiceError(f"Conteneur {container_id} introuvable")
+            raise
         except docker.errors.APIError as e:
             logger.error("[docker_service] Error during container stats retrieval: %r", e)
             raise DockerServiceError(f"[docker_service] Error during container stats retrieval: {e}")

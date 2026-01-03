@@ -4,9 +4,13 @@ Tests for DockerService using mock Docker client
 
 from collections.abc import Generator
 
+import docker
 import pytest
 
-from docker_manager.services.docker_service import DockerServiceError, get_docker_service
+from docker_manager.services.docker_service import (
+    DockerServiceError,
+    get_docker_service,
+)
 
 
 @pytest.mark.django_db
@@ -111,7 +115,7 @@ class TestDockerService:
         status = docker_service.get_container_status("nonexistent")
         assert status == "not_found"
 
-        with pytest.raises(DockerServiceError):
+        with pytest.raises(docker.errors.NotFound):
             docker_service.get_container_stats("nonexistent")
 
     def test_remove_container(self, patched_docker_service, fake_container):
