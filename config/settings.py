@@ -70,6 +70,7 @@ class Dev(Configuration):
     MIDDLEWARE = [
         "request_id.middleware.RequestIdMiddleware",
         "django.middleware.security.SecurityMiddleware",
+        "config.middleware.AdminIPRestrictionMiddleware",
         "corsheaders.middleware.CorsMiddleware",
         "django.contrib.sessions.middleware.SessionMiddleware",
         "django.middleware.common.CommonMiddleware",
@@ -310,6 +311,11 @@ class Dev(Configuration):
 
     # region swagger --------------------------------------------------------------------------------------
     SWAGGER_USE_COMPAT_RENDERERS = False
+    # endregion
+
+    # region Admin IP Restriction --------------------------------------------------------------------------------------
+    # Désactiver la restriction IP en développement (utile pour les tests locaux)
+    ADMIN_IP_RESTRICTION_DISABLED_IN_DEBUG = values.BooleanValue(default=True, environ_prefix=None)
     # endregion
 
 
