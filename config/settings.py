@@ -454,8 +454,8 @@ class Prod(Dev):
                 "format": "[%(levelname)s] - %(asctime)s - %(request_id)s - %(filename)s:%(lineno)d - %(message)s",
                 "datefmt": "%Y-%m-%d %H:%M:%S",
             },
-            "promtail": {
-                "()": "pythonjson.json.JsonFormatter",
+            "json": {
+                "()": json.JsonFormatter,
                 "format": "%(levelname)s %(asctime)s %(name)s %(request_id)s %(message)s",
             },
         },
@@ -501,7 +501,7 @@ class Prod(Dev):
                 "maxBytes": 10 * 1024 * 1024,
                 "backupCount": 5,
                 "filters": ["request_id"],
-                "formatter": "promtail",
+                "formatter": "json",
             },
             "json_celery_worker": {
                 "class": "logging.handlers.RotatingFileHandler",
@@ -509,7 +509,7 @@ class Prod(Dev):
                 "maxBytes": 10 * 1024 * 1024,
                 "backupCount": 5,
                 "filters": ["request_id"],
-                "formatter": "promtail",
+                "formatter": "json",
             },
             "json_celery_beat": {
                 "class": "logging.handlers.RotatingFileHandler",
@@ -517,7 +517,7 @@ class Prod(Dev):
                 "maxBytes": 10 * 1024 * 1024,
                 "backupCount": 5,
                 "filters": ["request_id"],
-                "formatter": "promtail",
+                "formatter": "json",
             },
         },
         "root": {
