@@ -8,11 +8,11 @@ from docker_manager.consumers import ContainerLogsConsumer, ContainerStatsConsum
 
 websocket_urlpatterns = [
     re_path(
-        r"ws/containers/(?P<container_id>[a-f0-9]+)/logs/$",
+        r"gserv/ws/containers/(?P<container_id>[a-f0-9]+)/logs/$",
         ContainerLogsConsumer.as_asgi(),
     ),
     re_path(
-        r"ws/containers/(?P<container_id>[a-f0-9]+)/stats/$",
+        r"gserv/ws/containers/(?P<container_id>[a-f0-9]+)/stats/$",
         ContainerStatsConsumer.as_asgi(),
     ),
 ]
