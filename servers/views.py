@@ -101,7 +101,9 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
         if user.is_admin:
             return ServerInstance.objects.all()
         return ServerInstance.objects.prefetch_related("roles").filter(
-            models.Q(owner=user) | models.Q(is_public=True) | models.Q(roles__user=user, roles__can_view=True)
+            models.Q(owner=user)
+            | models.Q(is_public=True)
+            | models.Q(roles__user=user, roles__can_view=True)
         )
 
     def get_serializer_class(self):
@@ -116,7 +118,9 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
         try:
             return super().list(request, *args, **kwargs)
         except Exception as e:
-            logger.error(f"[servers_instance_list] Error listing servers error={str(e)}")
+            logger.error(
+                f"[servers_instance_list] Error listing servers error={str(e)}"
+            )
             return Response(
                 {"error": "Erreur lors de la récupération des serveurs"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -124,7 +128,9 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
 
     def create(self, request, *args, **kwargs):
         name = request.data.get("name")
-        logger.info(f"[servers_instance_create] Server instance create request name={name}")
+        logger.info(
+            f"[servers_instance_create] Server instance create request name={name}"
+        )
         try:
             response = super().create(request, *args, **kwargs)
             if response.status_code == 201:
@@ -132,7 +138,9 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
                 user_id = request.user.id
                 direct_launch = request.data.get("direct_launch", False)
                 server = ServerInstance.objects.get(id=server_id)
-                logger.info(f"[servers_instance_create] Server instance created successfully id={server_id} name={name}")
+                logger.info(
+                    f"[servers_instance_create] Server instance created successfully id={server_id} name={name}"
+                )
                 # Create server instance
                 if not direct_launch:
                     create_server_task.delay(server_id)
@@ -151,19 +159,31 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
                 return response
             raise Exception("Server creation failed")
         except DRFValidationError as e:
-            logger.warning(f"[servers_instance_create] Validation error name={name} errors={e.detail}")
+            logger.warning(
+                f"[servers_instance_create] Validation error name={name} errors={e.detail}"
+            )
             return Response(
                 {"error": "Erreur de validation", "details": e.detail},
-                status=(status.HTTP_409_CONFLICT if "port" in e.detail else status.HTTP_400_BAD_REQUEST),
+                status=(
+                    status.HTTP_409_CONFLICT
+                    if "port" in e.detail
+                    else status.HTTP_400_BAD_REQUEST
+                ),
             )
         except IntegrityError as e:
-            logger.error(f"[servers_instance_create] Integrity error name={name} error={str(e)}")
+            logger.error(
+                f"[servers_instance_create] Integrity error name={name} error={str(e)}"
+            )
             return Response(
-                {"error": "Erreur de contrainte d'intégrité lors de la création du serveur"},
+                {
+                    "error": "Erreur de contrainte d'intégrité lors de la création du serveur"
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
         except Exception:
-            logger.error(f"[servers_instance_create] Unexpected error name={name} error={traceback.format_exc()}")
+            logger.error(
+                f"[servers_instance_create] Unexpected error name={name} error={traceback.format_exc()}"
+            )
             return Response(
                 {"error": "Erreur lors de la création du serveur"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -171,45 +191,69 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
 
     def retrieve(self, request, *args, **kwargs):
         server_id = kwargs.get("pk")
-        logger.info(f"[servers_instance_retrieve] Server instance retrieve request id={server_id}")
+        logger.info(
+            f"[servers_instance_retrieve] Server instance retrieve request id={server_id}"
+        )
         try:
             instance = self.get_object()
             serializer = self.get_serializer(instance, context={"request": request})
             return Response(serializer.data)
         except NotFound:
-            logger.warning(f"[servers_instance_retrieve] Server not found id={server_id}")
-            return Response({"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
+            logger.warning(
+                f"[servers_instance_retrieve] Server not found id={server_id}"
+            )
+            return Response(
+                {"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND
+            )
 
     def update(self, request, *args, **kwargs):
         server_id = kwargs.get("pk")
-        logger.info(f"[servers_instance_update] Server instance update request id={server_id}")
+        logger.info(
+            f"[servers_instance_update] Server instance update request id={server_id}"
+        )
         try:
-            response = super().update(request, *args, **kwargs)
-            logger.info(f"[servers_instance_update] Server instance updated successfully id={server_id}")
-            return response
+            super().update(request, *args, **kwargs)
+            instance = self.get_object()
+            detail_serializer = ServerInstanceDetailSerializer(
+                instance, context={"request": request}
+            )
+            logger.info(
+                f"[servers_instance_update] Server instance updated successfully id={server_id}"
+            )
+            return Response(detail_serializer.data)
         except DRFValidationError as e:
-            logger.warning(f"[servers_instance_update] Validation error id={server_id} errors={e.detail}")
+            logger.warning(
+                f"[servers_instance_update] Validation error id={server_id} errors={e.detail}"
+            )
             return Response(
                 {"error": "Erreur de validation", "details": e.detail},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         except NotFound:
             logger.warning(f"[servers_instance_update] Server not found id={server_id}")
-            return Response({"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND
+            )
         except IntegrityError as e:
-            logger.error(f"[servers_instance_update] Integrity error id={server_id} error={str(e)}")
+            logger.error(
+                f"[servers_instance_update] Integrity error id={server_id} error={str(e)}"
+            )
             return Response(
                 {"error": "Erreur de contrainte d'intégrité lors de la mise à jour"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         except PermissionDenied as e:
-            logger.warning(f"[servers_instance_update] Permission denied id={server_id} error={str(e)}")
+            logger.warning(
+                f"[servers_instance_update] Permission denied id={server_id} error={str(e)}"
+            )
             return Response(
                 {"error": "Permission refusée pour la mise à jour du serveur"},
                 status=status.HTTP_403_FORBIDDEN,
             )
         except Exception as e:
-            logger.error(f"[servers_instance_update] Unexpected error id={server_id} error={str(e)}")
+            logger.error(
+                f"[servers_instance_update] Unexpected error id={server_id} error={str(e)}"
+            )
             return Response(
                 {"error": "Erreur lors de la mise à jour du serveur"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -217,34 +261,56 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
 
     def partial_update(self, request, *args, **kwargs):
         server_id = kwargs.get("pk")
-        logger.info(f"[servers_instance_partial_update] Server instance partial update request id={server_id}")
+        logger.info(
+            f"[servers_instance_partial_update] Server instance partial update request id={server_id}"
+        )
         try:
-            response = super().partial_update(request, *args, **kwargs)
-            logger.info(f"[servers_instance_partial_update] Server instance partially updated successfully id={server_id}")
-            return response
+            super().partial_update(request, *args, **kwargs)
+            instance = self.get_object()
+            detail_serializer = ServerInstanceDetailSerializer(
+                instance, context={"request": request}
+            )
+            logger.info(
+                f"[servers_instance_partial_update] Server instance partially updated successfully id={server_id}"
+            )
+            return Response(detail_serializer.data)
         except DRFValidationError as e:
-            logger.warning(f"[servers_instance_partial_update] Validation error id={server_id} errors={e.detail}")
+            logger.warning(
+                f"[servers_instance_partial_update] Validation error id={server_id} errors={e.detail}"
+            )
             return Response(
                 {"error": "Erreur de validation", "details": e.detail},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         except NotFound:
-            logger.warning(f"[servers_instance_partial_update] Server not found id={server_id}")
-            return Response({"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
+            logger.warning(
+                f"[servers_instance_partial_update] Server not found id={server_id}"
+            )
+            return Response(
+                {"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND
+            )
         except IntegrityError as e:
-            logger.error(f"[servers_instance_partial_update] Integrity error id={server_id} error={str(e)}")
+            logger.error(
+                f"[servers_instance_partial_update] Integrity error id={server_id} error={str(e)}"
+            )
             return Response(
                 {"error": "Erreur de contrainte d'intégrité lors de la mise à jour"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         except PermissionDenied as e:
-            logger.warning(f"[servers_instance_partial_update] Permission denied id={server_id} error={str(e)}")
+            logger.warning(
+                f"[servers_instance_partial_update] Permission denied id={server_id} error={str(e)}"
+            )
             return Response(
-                {"error": "Permission refusée pour la mise à jour partielle du serveur"},
+                {
+                    "error": "Permission refusée pour la mise à jour partielle du serveur"
+                },
                 status=status.HTTP_403_FORBIDDEN,
             )
         except Exception as e:
-            logger.error(f"[servers_instance_partial_update] Unexpected error id={server_id} error={str(e)}")
+            logger.error(
+                f"[servers_instance_partial_update] Unexpected error id={server_id} error={str(e)}"
+            )
             return Response(
                 {"error": "Erreur lors de la mise à jour partielle du serveur"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -252,19 +318,33 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         server_id = kwargs.get("pk")
-        logger.info(f"[servers_instance_destroy] Server instance delete request id={server_id}")
+        logger.info(
+            f"[servers_instance_destroy] Server instance delete request id={server_id}"
+        )
         try:
             response = super().destroy(request, *args, **kwargs)
-            logger.info(f"[servers_instance_destroy] Server instance deleted successfully id={server_id}")
+            logger.info(
+                f"[servers_instance_destroy] Server instance deleted successfully id={server_id}"
+            )
             return response
         except NotFound:
-            logger.warning(f"[servers_instance_destroy] Server not found id={server_id}")
-            return Response({"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
+            logger.warning(
+                f"[servers_instance_destroy] Server not found id={server_id}"
+            )
+            return Response(
+                {"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND
+            )
         except ServerInstance.DoesNotExist:
-            logger.warning(f"[servers_instance_destroy] Server not found id={server_id}")
-            return Response({"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
+            logger.warning(
+                f"[servers_instance_destroy] Server not found id={server_id}"
+            )
+            return Response(
+                {"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND
+            )
         except Exception as e:
-            logger.error(f"[servers_instance_destroy] Error deleting server id={server_id} error={str(e)}")
+            logger.error(
+                f"[servers_instance_destroy] Error deleting server id={server_id} error={str(e)}"
+            )
             return Response(
                 {"error": "Erreur lors de la suppression du serveur"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -290,16 +370,20 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
             server = self.get_object()
 
             if server.is_running:
-                logger.warning(f"[servers_instance_start] Server already running id={pk}")
+                logger.warning(
+                    f"[servers_instance_start] Server already running id={pk}"
+                )
                 return Response(
                     {"error": "Le serveur est déjà en cours d'exécution"},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            is_available, conflicting_server, conflicting_port = ServerInstance.is_port_available(
-                port=server.port,
-                additional_ports=server.additional_ports,
-                exclude_server_id=server.id,
+            is_available, conflicting_server, conflicting_port = (
+                ServerInstance.is_port_available(
+                    port=server.port,
+                    additional_ports=server.additional_ports,
+                    exclude_server_id=server.id,
+                )
             )
 
             if not is_available:
@@ -327,7 +411,9 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
             )
 
             if not is_available:
-                logger.warning(f"[servers_instance_start] Resource limit exceeded id={pk} error={error_message}")
+                logger.warning(
+                    f"[servers_instance_start] Resource limit exceeded id={pk} error={error_message}"
+                )
                 return Response(
                     {"error": error_message},
                     status=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -346,21 +432,29 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
             return Response({"message": "Démarrage du serveur en cours"})
         except NotFound:
             logger.warning(f"[servers_instance_start] Server not found id={pk}")
-            return Response({"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND
+            )
         except IntegrityError as e:
-            logger.error(f"[servers_instance_start] Integrity error id={pk} error={str(e)}")
+            logger.error(
+                f"[servers_instance_start] Integrity error id={pk} error={str(e)}"
+            )
             return Response(
                 {"error": "Erreur lors du démarrage du serveur"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
         except PermissionDenied as e:
-            logger.warning(f"[servers_instance_start] Permission denied id={pk} error={str(e)}")
+            logger.warning(
+                f"[servers_instance_start] Permission denied id={pk} error={str(e)}"
+            )
             return Response(
                 {"error": "Permission refusée pour le démarrage du serveur"},
                 status=status.HTTP_403_FORBIDDEN,
             )
         except Exception as e:
-            logger.error(f"[servers_instance_start] Unexpected error id={pk} error={str(e)}")
+            logger.error(
+                f"[servers_instance_start] Unexpected error id={pk} error={str(e)}"
+            )
             return Response(
                 {"error": "Erreur lors du démarrage du serveur"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -385,7 +479,9 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
             server = self.get_object()
             delete_data = request.data.get("delete_data", False)
 
-            full_reset_server_task.delay(server.pk, delete_data=delete_data, user_id=request.user.id)
+            full_reset_server_task.delay(
+                server.pk, delete_data=delete_data, user_id=request.user.id
+            )
 
             msg = "Serveur remis à zéro et relancé"
             if delete_data:
@@ -397,26 +493,36 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
                 message=msg,
                 triggered_by=request.user,
             )
-            logger.info(f"[servers_instance_full_reset] Server full reset initiated id={pk}")
+            logger.info(
+                f"[servers_instance_full_reset] Server full reset initiated id={pk}"
+            )
 
             return Response({"message": msg})
         except NotFound:
             logger.warning(f"[servers_instance_start] Server not found id={pk}")
-            return Response({"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND
+            )
         except IntegrityError as e:
-            logger.error(f"[servers_instance_start] Integrity error id={pk} error={str(e)}")
+            logger.error(
+                f"[servers_instance_start] Integrity error id={pk} error={str(e)}"
+            )
             return Response(
                 {"error": "Erreur lors du démarrage du serveur"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
         except PermissionDenied as e:
-            logger.warning(f"[servers_instance_start] Permission denied id={pk} error={str(e)}")
+            logger.warning(
+                f"[servers_instance_start] Permission denied id={pk} error={str(e)}"
+            )
             return Response(
                 {"error": "Permission refusée pour le démarrage du serveur"},
                 status=status.HTTP_403_FORBIDDEN,
             )
         except Exception as e:
-            logger.error(f"[servers_instance_start] Unexpected error id={pk} error={str(e)}")
+            logger.error(
+                f"[servers_instance_start] Unexpected error id={pk} error={str(e)}"
+            )
             return Response(
                 {"error": "Erreur lors du démarrage du serveur"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -439,7 +545,9 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
             server = self.get_object()
 
             if server.status == ServerInstance.STOPPED:
-                logger.warning(f"[servers_instance_stop] Server already stopped id={pk}")
+                logger.warning(
+                    f"[servers_instance_stop] Server already stopped id={pk}"
+                )
                 return Response(
                     {"error": "Le serveur est déjà arrêté"},
                     status=status.HTTP_400_BAD_REQUEST,
@@ -458,21 +566,29 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
             return Response({"message": "Arrêt du serveur en cours"})
         except NotFound:
             logger.warning(f"[servers_instance_stop] Server not found id={pk}")
-            return Response({"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND
+            )
         except IntegrityError as e:
-            logger.error(f"[servers_instance_stop] Integrity error id={pk} error={str(e)}")
+            logger.error(
+                f"[servers_instance_stop] Integrity error id={pk} error={str(e)}"
+            )
             return Response(
                 {"error": "Erreur lors de l'arrêt du serveur"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
         except PermissionDenied as e:
-            logger.warning(f"[servers_instance_stop] Permission denied id={pk} error={str(e)}")
+            logger.warning(
+                f"[servers_instance_stop] Permission denied id={pk} error={str(e)}"
+            )
             return Response(
                 {"error": "Permission refusée pour l'arrêt du serveur"},
                 status=status.HTTP_403_FORBIDDEN,
             )
         except Exception as e:
-            logger.error(f"[servers_instance_stop] Unexpected error id={pk} error={str(e)}")
+            logger.error(
+                f"[servers_instance_stop] Unexpected error id={pk} error={str(e)}"
+            )
             return Response(
                 {"error": "Erreur lors de l'arrêt du serveur"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -506,21 +622,29 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
             return Response({"message": "Redémarrage du serveur en cours"})
         except NotFound:
             logger.warning(f"[servers_instance_restart] Server not found id={pk}")
-            return Response({"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND
+            )
         except IntegrityError as e:
-            logger.error(f"[servers_instance_restart] Integrity error id={pk} error={str(e)}")
+            logger.error(
+                f"[servers_instance_restart] Integrity error id={pk} error={str(e)}"
+            )
             return Response(
                 {"error": "Erreur lors du redémarrage du serveur"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
         except PermissionDenied as e:
-            logger.warning(f"[servers_instance_restart] Permission denied id={pk} error={str(e)}")
+            logger.warning(
+                f"[servers_instance_restart] Permission denied id={pk} error={str(e)}"
+            )
             return Response(
                 {"error": "Permission refusée pour le redémarrage du serveur"},
                 status=status.HTTP_403_FORBIDDEN,
             )
         except Exception as e:
-            logger.error(f"[servers_instance_restart] Unexpected error id={pk} error={str(e)}")
+            logger.error(
+                f"[servers_instance_restart] Unexpected error id={pk} error={str(e)}"
+            )
             return Response(
                 {"error": "Erreur lors du redémarrage du serveur"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -542,12 +666,16 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
             Response with success message or error if server must be stopped
         """
         force = request.data.get("force", False)
-        logger.info(f"[servers_instance_update_server] Server update request id={pk} force={force}")
+        logger.info(
+            f"[servers_instance_update_server] Server update request id={pk} force={force}"
+        )
         try:
             server = self.get_object()
 
             if server.is_running and not force:
-                logger.warning(f"[servers_instance_update_server] Server must be stopped to update id={pk}")
+                logger.warning(
+                    f"[servers_instance_update_server] Server must be stopped to update id={pk}"
+                )
                 return Response(
                     {"error": "Le serveur doit être arrêté pour être mis à jour"},
                     status=status.HTTP_400_BAD_REQUEST,
@@ -561,26 +689,36 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
                 message="Mise à jour du serveur demandée.",
                 triggered_by=request.user,
             )
-            logger.info(f"[servers_instance_update_server] Server update initiated id={pk}")
+            logger.info(
+                f"[servers_instance_update_server] Server update initiated id={pk}"
+            )
 
             return Response({"message": "Mise à jour du serveur en cours"})
         except NotFound:
             logger.warning(f"[servers_instance_update_server] Server not found id={pk}")
-            return Response({"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND
+            )
         except IntegrityError as e:
-            logger.error(f"[servers_instance_update_server] Integrity error id={pk} error={str(e)}")
+            logger.error(
+                f"[servers_instance_update_server] Integrity error id={pk} error={str(e)}"
+            )
             return Response(
                 {"error": "Erreur lors de la mise à jour du serveur"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
         except PermissionDenied as e:
-            logger.warning(f"[servers_instance_update_server] Permission denied id={pk} error={str(e)}")
+            logger.warning(
+                f"[servers_instance_update_server] Permission denied id={pk} error={str(e)}"
+            )
             return Response(
                 {"error": "Permission refusée pour la mise à jour du serveur"},
                 status=status.HTTP_403_FORBIDDEN,
             )
         except Exception as e:
-            logger.error(f"[servers_instance_update_server] Unexpected error id={pk} error={str(e)}")
+            logger.error(
+                f"[servers_instance_update_server] Unexpected error id={pk} error={str(e)}"
+            )
             return Response(
                 {"error": "Erreur lors de la mise à jour du serveur"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -588,17 +726,25 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["get"])
     def status_history(self, request, pk=None):
-        logger.info(f"[servers_instance_status_history] Get server status history request id={pk}")
+        logger.info(
+            f"[servers_instance_status_history] Get server status history request id={pk}"
+        )
         try:
             server = self.get_object()
             history = server.status_history.all()[:50]
             serializer = ServerStatusSerializer(history, many=True)
             return Response(serializer.data)
         except NotFound:
-            logger.warning(f"[servers_instance_status_history] Server not found id={pk}")
-            return Response({"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
+            logger.warning(
+                f"[servers_instance_status_history] Server not found id={pk}"
+            )
+            return Response(
+                {"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND
+            )
         except Exception as e:
-            logger.error(f"[servers_instance_status_history] Error getting status history id={pk} error={str(e)}")
+            logger.error(
+                f"[servers_instance_status_history] Error getting status history id={pk} error={str(e)}"
+            )
             return Response(
                 {"error": "Erreur lors de la récupération de l'historique"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -628,12 +774,16 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
             server = self.get_object()
 
             if request.method == "GET":
-                logger.info(f"[servers_instance_roles] Get server roles request id={pk}")
+                logger.info(
+                    f"[servers_instance_roles] Get server roles request id={pk}"
+                )
                 roles = server.roles.all()
                 serializer = ServerRoleSerializer(roles, many=True)
                 return Response(serializer.data)
             elif request.method == "PATCH":
-                logger.info(f"[servers_instance_roles] Update server role request id={pk}")
+                logger.info(
+                    f"[servers_instance_roles] Update server role request id={pk}"
+                )
                 from django.contrib.auth import get_user_model
 
                 username_input = request.data.get("username_input", "").strip()
@@ -673,7 +823,9 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
             elif request.method == "POST":
                 action = request.data.get("action")
                 if action == "add":
-                    logger.info(f"[servers_instance_roles] Add server role request id={pk}")
+                    logger.info(
+                        f"[servers_instance_roles] Add server role request id={pk}"
+                    )
                     serializer = ServerRoleSerializer(
                         data=request.data,
                         context={"request": request, "server": server},
@@ -682,33 +834,47 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
                     serializer.save(server=server, added_by=request.user)
                     return Response(serializer.data, status=status.HTTP_201_CREATED)
                 elif action == "delete":
-                    logger.info(f"[servers_instance_roles] Delete server role request id={pk}")
+                    logger.info(
+                        f"[servers_instance_roles] Delete server role request id={pk}"
+                    )
                     role = server.roles.get(id=request.data.get("id"))
                     role.delete()
                     return Response(status=status.HTTP_204_NO_CONTENT)
                 else:
-                    return Response({"error": "Action invalide"}, status=status.HTTP_400_BAD_REQUEST)
+                    return Response(
+                        {"error": "Action invalide"}, status=status.HTTP_400_BAD_REQUEST
+                    )
 
         except NotFound:
             logger.warning(f"[servers_instance_roles] Server not found id={pk}")
-            return Response({"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND
+            )
         except DRFValidationError as e:
-            logger.warning(f"[servers_instance_roles] Validation error id={pk} errors={e.detail}")
+            logger.warning(
+                f"[servers_instance_roles] Validation error id={pk} errors={e.detail}"
+            )
             raise
         except IntegrityError as e:
-            logger.error(f"[servers_instance_roles] Integrity error id={pk} error={str(e)}")
+            logger.error(
+                f"[servers_instance_roles] Integrity error id={pk} error={str(e)}"
+            )
             return Response(
                 {"error": "Cet utilisateur a déjà un rôle sur ce serveur"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         except PermissionDenied as e:
-            logger.warning(f"[servers_instance_roles] Permission denied id={pk} error={str(e)}")
+            logger.warning(
+                f"[servers_instance_roles] Permission denied id={pk} error={str(e)}"
+            )
             return Response(
                 {"error": "Permission refusée pour la gestion des rôles"},
                 status=status.HTTP_403_FORBIDDEN,
             )
         except Exception as e:
-            logger.error(f"[servers_instance_roles] Unexpected error id={pk} error={str(e)}")
+            logger.error(
+                f"[servers_instance_roles] Unexpected error id={pk} error={str(e)}"
+            )
             raise
 
     @action(detail=True, methods=["get"])
@@ -728,7 +894,9 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
 
         try:
             server = self.get_object()
-            logger.info(f"[servers_instance_metrics] Get server metrics request id={pk}")
+            logger.info(
+                f"[servers_instance_metrics] Get server metrics request id={pk}"
+            )
 
             start_date_str = request.query_params.get("start_date")
             end_date_str = request.query_params.get("end_date")
@@ -749,7 +917,9 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
                     if start_date:
                         queryset = queryset.filter(created_at__gte=start_date)
                 except (ValueError, TypeError):
-                    logger.warning(f"[servers_instance_metrics] Invalid start_date format: {start_date_str}")
+                    logger.warning(
+                        f"[servers_instance_metrics] Invalid start_date format: {start_date_str}"
+                    )
 
             if end_date_str:
                 try:
@@ -757,22 +927,30 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
                     if end_date:
                         queryset = queryset.filter(created_at__lte=end_date)
                 except (ValueError, TypeError):
-                    logger.warning(f"[servers_instance_metrics] Invalid end_date format: {end_date_str}")
+                    logger.warning(
+                        f"[servers_instance_metrics] Invalid end_date format: {end_date_str}"
+                    )
 
             queryset = queryset.order_by("created_at")
 
             metrics = queryset[:limit]
 
             serializer = ServerMetricsSerializer(metrics, many=True)
-            logger.info(f"[servers_instance_metrics] Retrieved {len(serializer.data)} metrics for server id={pk}")
+            logger.info(
+                f"[servers_instance_metrics] Retrieved {len(serializer.data)} metrics for server id={pk}"
+            )
 
             return Response(serializer.data)
 
         except NotFound:
             logger.warning(f"[servers_instance_metrics] Server not found id={pk}")
-            return Response({"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"error": "Serveur non trouvé"}, status=status.HTTP_404_NOT_FOUND
+            )
         except Exception as e:
-            logger.error(f"[servers_instance_metrics] Error retrieving metrics id={pk} error={str(e)}")
+            logger.error(
+                f"[servers_instance_metrics] Error retrieving metrics id={pk} error={str(e)}"
+            )
             return Response(
                 {"error": "Erreur lors de la récupération des métriques"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
