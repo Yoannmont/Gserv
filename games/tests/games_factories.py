@@ -34,5 +34,4 @@ class GameConfigurationFactory(DjangoModelFactory):
     game = factory.SubFactory(GameFactory)
     name = factory.Sequence(lambda n: f"Config {n}")
     description = factory.Faker("text", max_nb_chars=100)
-    config_data = factory.LazyFunction(lambda: {"key": "value"})
     is_default = False

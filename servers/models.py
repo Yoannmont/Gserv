@@ -62,7 +62,7 @@ class ServerInstance(models.Model):
         verbose_name="Ports additionnels mappés",
         help_text='Mapping des ports additionnels: {"27015": 27016, "8212": 8213}',
     )
-    max_players = models.IntegerField(default=20, verbose_name="Nombre maximum de joueurs")
+    max_players = models.IntegerField(default=8, verbose_name="Nombre maximum de joueurs")
     auto_start = models.BooleanField(default=False, verbose_name="Démarrage automatique")
     auto_update = models.BooleanField(default=False, verbose_name="Mise à jour automatique")
     backup_enabled = models.BooleanField(default=True, verbose_name="Sauvegardes activées")
@@ -278,6 +278,31 @@ class ServerInstance(models.Model):
 
         return True, None
 
+    @staticmethod
+    def get_default_configuration_for_game(game):
+        """
+        Gets default configuration for a game.
+        Uses the GameConfiguration default if it exists, otherwise returns the system default values.
+        """
+        defaults = {
+            "memory_limit": "2g",
+            "cpu_limit": 2.0,
+            "environment_variables": {},
+            "docker_volumes": {},
+            "custom_startup_command": "",
+        }
+
+        if game:
+            try:
+                game_config = game.configurations.filter(is_default=True).first()
+                if game_config:
+                    config = game_config.config_data
+                    return defaults | config
+            except Exception:
+                pass
+
+        return defaults
+
 
 class ServerConfiguration(models.Model):
     """Configuration specific to a server instance"""
@@ -288,12 +313,6 @@ class ServerConfiguration(models.Model):
         related_name="configuration",
         verbose_name="Serveur",
     )
-    config_data = models.JSONField(
-        default=dict,
-        verbose_name="Configuration",
-        help_text="Configuration complète au format JSON",
-        blank=True,
-    )
     environment_variables = models.JSONField(
         default=dict,
         verbose_name="Variables d'environnement",
@@ -303,7 +322,7 @@ class ServerConfiguration(models.Model):
     docker_volumes = models.JSONField(
         default=dict,
         verbose_name="Volumes Docker",
-        help_text='Liste des volumes à monter (ex: {"data": {"bind": "/palworld", "mode": "rw"}}',
+        help_text='Liste des volumes à monter (ex: {"data": {"bind": "/palworld", "mode": "rw"}})',
         blank=True,
     )
     memory_limit = models.CharField(

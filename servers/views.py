@@ -24,10 +24,9 @@ from docker_manager.tasks import (
 )
 from servers.models import ServerInstance, ServerMetrics, ServerStatus
 from servers.serializers import (
-    ServerInstanceCreateSerializer,
     ServerInstanceDetailSerializer,
     ServerInstanceListSerializer,
-    ServerInstanceUpdateSerializer,
+    ServerInstanceSerializer,
     ServerMetricsSerializer,
     ServerRoleSerializer,
     ServerStatusSerializer,
@@ -108,10 +107,8 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
     def get_serializer_class(self):
         if self.action == "list":
             return ServerInstanceListSerializer
-        if self.action == "create":
-            return ServerInstanceCreateSerializer
-        if self.action in ["update", "partial_update"]:
-            return ServerInstanceUpdateSerializer
+        if self.action in ["create", "update", "partial_update"]:
+            return ServerInstanceSerializer
         return ServerInstanceDetailSerializer
 
     def list(self, request, *args, **kwargs):

@@ -85,7 +85,6 @@ class TestServerInstanceViewSet:
             "backup_enabled": True,
             "is_public": True,
             "configuration": {
-                "config_data": {},
                 "environment_variables": {},
                 "docker_volumes": {},
                 "memory_limit": "2g",
@@ -183,15 +182,11 @@ class TestServerInstanceViewSet:
             "description": "Updated description",
             "port": 25566,
             "max_players": 30,
-            "status": "running",
             "auto_start": True,
             "auto_update": True,
             "backup_enabled": False,
             "is_public": True,
             "configuration": {
-                "config_data": {
-                    "key": "value",
-                },
                 "environment_variables": {
                     "key": "value",
                 },
@@ -208,12 +203,10 @@ class TestServerInstanceViewSet:
         server.refresh_from_db()
         assert server.name == "Updated Name"
         assert server.port == 25566
-        assert server.status == "running"
         assert server.auto_start is True
         assert server.auto_update is True
         assert server.backup_enabled is False
         assert server.is_public is True
-        assert server.configuration.config_data == {"key": "value"}
         assert server.configuration.environment_variables == {"key": "value"}
         assert server.configuration.docker_volumes == {"data": {"source": "/path/to/source", "target": "/path/to/target"}}
         assert server.configuration.memory_limit == "2g"

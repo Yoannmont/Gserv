@@ -16,7 +16,7 @@ class ServerInstanceFactory(DjangoModelFactory):
 
     name = factory.Sequence(lambda n: f"Server {n}")
     game = factory.SubFactory(GameFactory)
-    game_version = factory.SubFactory(GameVersionFactory)
+    game_version = factory.SubFactory(GameVersionFactory, game=factory.SelfAttribute("..game"))
     owner = factory.SubFactory(UserFactory)
     description = factory.Faker("text", max_nb_chars=200)
     status = "stopped"
@@ -33,7 +33,6 @@ class ServerConfigurationFactory(DjangoModelFactory):
         model = ServerConfiguration
 
     server = factory.SubFactory(ServerInstanceFactory)
-    config_data = factory.LazyFunction(lambda: {"difficulty": "normal"})
     environment_variables = factory.LazyFunction(lambda: {"EULA": "TRUE"})
     docker_volumes = factory.LazyFunction(lambda: {"data": {"bind": "/data", "mode": "rw"}})
     memory_limit = "2g"

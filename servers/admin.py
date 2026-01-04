@@ -69,7 +69,7 @@ class ServerConfigurationAdmin(admin.ModelAdmin):
         ("Serveur", {"fields": ("server",)}),
         ("Ressources", {"fields": ("memory_limit", "cpu_limit")}),
         ("Docker", {"fields": ("environment_variables", "docker_volumes")}),
-        ("Configuration", {"fields": ("config_data",)}),
+        ("Configuration", {"fields": ("is_default",)}),
         ("Avancé", {"fields": ("custom_startup_command",), "classes": ("collapse",)}),
     ]
 

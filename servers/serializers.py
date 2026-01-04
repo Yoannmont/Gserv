@@ -15,7 +15,6 @@ class ServerConfigurationSerializer(serializers.ModelSerializer):
     class Meta:
         model = ServerConfiguration
         fields = [
-            "config_data",
             "environment_variables",
             "docker_volumes",
             "memory_limit",
@@ -176,6 +175,7 @@ class ServerInstanceDetailSerializer(serializers.ModelSerializer):
             "status",
             "container_id",
             "port",
+            "additional_ports",
             "max_players",
             "auto_start",
             "auto_update",
@@ -208,49 +208,8 @@ class ServerInstanceDetailSerializer(serializers.ModelSerializer):
                 return None
         return None
 
-    def validate(self, data):
-        if data["game_version"].game != data["game"]:
-            raise serializers.ValidationError("Game version and game do not match")
-        return data
 
-    def create(self, validated_data):
-        configuration_data = validated_data.pop("configuration", None)
-        owner = self.context["request"].user
-        default_configuration = {
-            "config_data": {},
-            "environment_variables": {},
-            "docker_volumes": {},
-            "memory_limit": "2g",
-            "cpu_limit": 2.0,
-            "custom_startup_command": "",
-        }
-
-        server = ServerInstance.objects.create(owner=owner, **validated_data)
-        if not configuration_data or not ServerConfigurationSerializer(data=configuration_data).is_valid():
-            server.configuration = ServerConfiguration.objects.create(server=server, **default_configuration)
-        else:
-            server.configuration = ServerConfiguration.objects.create(server=server, **configuration_data)
-        server.save()
-
-        return server
-
-    def update(self, instance, validated_data):
-        configuration_data = validated_data.pop("configuration", None)
-
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        instance.save()
-
-        if configuration_data and hasattr(instance, "configuration"):
-            config = instance.configuration
-            for attr, value in configuration_data.items():
-                setattr(config, attr, value)
-            config.save()
-
-        return instance
-
-
-class ServerInstanceCreateSerializer(serializers.ModelSerializer):
+class ServerInstanceSerializer(serializers.ModelSerializer):
     configuration = ServerConfigurationSerializer(required=False)
     force = serializers.BooleanField(write_only=True, required=False, default=False)
 
@@ -273,17 +232,32 @@ class ServerInstanceCreateSerializer(serializers.ModelSerializer):
             "force",
         ]
         read_only_fields = ["id"]
+        extra_kwargs = {
+            "game": {"required": False},
+            "game_version": {"required": False},
+        }
 
     def validate(self, data):
-        if data["game_version"].game != data["game"]:
+        server_instance = self.instance
+        game = data.get("game") or (server_instance.game if server_instance else None)
+        game_version = data.get("game_version") or (server_instance.game_version if server_instance else None)
+        if server_instance is None and (not game or not game_version):
+            raise serializers.ValidationError({"game": "Champ requis.", "game_version": "Champ requis."})
+
+        if game and game_version and game_version.game_id != game.id:
             raise serializers.ValidationError("Game version and game do not match")
 
-        port = data.get("port")
-        additional_ports = data.get("additional_ports", {})
+        # Checking if ports are available
+        port_in_payload = "port" in data
+        additional_ports_in_payload = "additional_ports" in data
+        port = data.get("port", getattr(server_instance, "port", None))
+        additional_ports = data.get("additional_ports", getattr(server_instance, "additional_ports", {})) or {}
 
-        if port:
+        if port_in_payload or additional_ports_in_payload:
             is_available, conflicting_server, conflicting_port = ServerInstance.is_port_available(
-                port=port, additional_ports=additional_ports
+                port=port,
+                additional_ports=additional_ports,
+                exclude_server_id=server_instance.id if server_instance else None,
             )
 
             if not is_available:
@@ -294,97 +268,73 @@ class ServerInstanceCreateSerializer(serializers.ModelSerializer):
                     }
                 )
 
-        configuration_data = data.get("configuration", {})
-        memory_limit = configuration_data.get("memory_limit", "2g")
-        cpu_limit = configuration_data.get("cpu_limit", 2.0)
+        payload_configuration = data.get("configuration")
         force = data.get("force", False)
+
+        # Computing final configuration (defaults game -> existing config -> payload)
+        default_game_configuration = ServerInstance.get_default_configuration_for_game(game)
+        existing_server_configuration = {}
+        if server_instance and hasattr(server_instance, "configuration"):
+            try:
+                existing_server_configuration = {
+                    "environment_variables": server_instance.configuration.environment_variables,
+                    "docker_volumes": server_instance.configuration.docker_volumes,
+                    "memory_limit": server_instance.configuration.memory_limit,
+                    "cpu_limit": server_instance.configuration.cpu_limit,
+                    "custom_startup_command": server_instance.configuration.custom_startup_command,
+                }
+            except Exception:
+                pass
+
+        payload_validated = {}
+        if payload_configuration is not None:
+            cfg_ser = ServerConfigurationSerializer(data=payload_configuration, partial=True)
+            cfg_ser.is_valid(raise_exception=True)
+            payload_validated = cfg_ser.validated_data
+
+        final_configuration = default_game_configuration | existing_server_configuration | payload_validated
+        memory_limit = final_configuration["memory_limit"]
+        cpu_limit = final_configuration["cpu_limit"]
 
         is_available, error_message = ServerInstance.check_resources_available(
             memory_limit=memory_limit,
             cpu_limit=cpu_limit,
+            exclude_server_id=server_instance.id if server_instance else None,
             force=force,
         )
 
         if not is_available:
             raise serializers.ValidationError({"resources": error_message})
 
+        data["configuration"] = final_configuration
+
         return data
 
     def create(self, validated_data):
         validated_data.pop("force", None)
-        configuration_data = validated_data.pop("configuration", None)
+        configuration_data = validated_data.pop("configuration")
         owner = self.context["request"].user
-        default_configuration = {
-            "config_data": {},
-            "environment_variables": {},
-            "docker_volumes": {},
-            "memory_limit": "2g",
-            "cpu_limit": 2.0,
-            "custom_startup_command": "",
-        }
 
-        server = ServerInstance.objects.create(owner=owner, **validated_data)
-        if not configuration_data or not ServerConfigurationSerializer(data=configuration_data).is_valid():
-            server.configuration = ServerConfiguration.objects.create(server=server, **default_configuration)
-        else:
-            server.configuration = ServerConfiguration.objects.create(server=server, **configuration_data)
-        server.save()
+        server_instance = ServerInstance.objects.create(owner=owner, **validated_data)
+        ServerConfiguration.objects.create(server=server_instance, **configuration_data)
 
-        return server
-
-
-class ServerInstanceUpdateSerializer(serializers.ModelSerializer):
-    configuration = ServerConfigurationSerializer(required=False)
-
-    class Meta:
-        model = ServerInstance
-        fields = [
-            "name",
-            "description",
-            "max_players",
-            "auto_start",
-            "auto_update",
-            "backup_enabled",
-            "is_public",
-            "port",
-            "additional_ports",
-            "status",
-            "configuration",
-        ]
-
-    def validate(self, data):
-        port = data.get("port")
-        additional_ports = data.get("additional_ports")
-
-        if port is not None:
-            is_available, conflicting_server, conflicting_port = ServerInstance.is_port_available(
-                port=port,
-                additional_ports=additional_ports,
-                exclude_server_id=self.instance.id if self.instance else None,
-            )
-
-            if not is_available:
-                raise serializers.ValidationError(
-                    {
-                        "port": f"Le port {conflicting_port} est déjà utilisé par le serveur '{conflicting_server.name}' "
-                        f"(ID: {conflicting_server.id})"
-                    }
-                )
-
-        return data
+        return server_instance
 
     def update(self, instance, validated_data):
-        configuration_data = validated_data.pop("configuration", None)
+        validated_data.pop("force", None)
+        configuration_data = validated_data.pop("configuration")
 
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
 
-        if configuration_data and hasattr(instance, "configuration"):
+        if hasattr(instance, "configuration"):
             config = instance.configuration
             for attr, value in configuration_data.items():
                 setattr(config, attr, value)
             config.save()
+        else:
+            ServerConfiguration.objects.create(server=instance, **configuration_data)
 
         return instance
 

@@ -61,5 +61,5 @@ class GameConfigurationAdmin(admin.ModelAdmin):
 
     fieldsets = [
         ("Identification", {"fields": ("game", "name", "description")}),
-        ("Configuration", {"fields": ("config_data", "is_default")}),
+        ("Configuration", {"fields": ("is_default", "config_data")}),
     ]

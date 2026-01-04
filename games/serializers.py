@@ -56,8 +56,8 @@ class GameConfigurationSerializer(serializers.ModelSerializer):
             "game_name",
             "name",
             "description",
-            "config_data",
             "is_default",
+            "config_data",
             "created_at",
             "updated_at",
         ]

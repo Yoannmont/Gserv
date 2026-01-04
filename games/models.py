@@ -91,11 +91,17 @@ class GameConfiguration(models.Model):
     )
     name = models.CharField(max_length=100, verbose_name="Nom de la configuration", db_index=True)
     description = models.TextField(blank=True, verbose_name="Description")
-    config_data = models.JSONField(
-        verbose_name="Données de configuration",
-        help_text="Configuration au format JSON",
-    )
     is_default = models.BooleanField(default=False, verbose_name="Configuration par défaut", db_index=True)
+    config_data = models.JSONField(
+        default=dict,
+        blank=True,
+        verbose_name="Données de configuration par défaut",
+        help_text=(
+            "Configuration par défaut pour les nouveaux serveurs. "
+            'Peut contenir: {"memory_limit": "2g", "cpu_limit": 2.0, '
+            '"environment_variables": {}, "docker_volumes": {}, "custom_startup_command": ""}'
+        ),
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -103,6 +109,13 @@ class GameConfiguration(models.Model):
         verbose_name = "Configuration de jeu"
         verbose_name_plural = "Configurations de jeux"
         ordering = ["game", "name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["game", "is_default"],
+                condition=models.Q(is_default=True),
+                name="unique_default_per_game",
+            )
+        ]
 
     def __str__(self):
         return f"{self.game.name} - {self.name}"
