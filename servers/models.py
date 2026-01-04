@@ -303,7 +303,7 @@ class ServerConfiguration(models.Model):
     docker_volumes = models.JSONField(
         default=dict,
         verbose_name="Volumes Docker",
-        help_text="Liste des volumes à monter (ex: {'data':  {'bind': '/palworld', 'mode': 'rw'})",
+        help_text='Liste des volumes à monter (ex: {"data": {"bind": "/palworld", "mode": "rw"}}',
         blank=True,
     )
     memory_limit = models.CharField(
