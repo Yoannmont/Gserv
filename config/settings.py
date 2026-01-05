@@ -143,6 +143,18 @@ class Dev(Configuration):
 
     CACHES = values.CacheURLValue()
 
+    CHANNEL_LAYERS_HOSTS_URL = values.Value(environ_required=True)
+
+    @property
+    def CHANNEL_HOST(self):
+        parsed = urlparse(self.CHANNEL_LAYERS_HOSTS_URL)
+        return parsed.hostname or "localhost"
+
+    @property
+    def CHANNEL_PORT(self):
+        parsed = urlparse(self.CHANNEL_LAYERS_HOSTS_URL)
+        return parsed.port or 6379
+
     REQUEST_ID_HEADER = None
 
     LOGGING = {
@@ -349,6 +361,16 @@ class Prod(Dev):
     # region Channels --------------------------------------------------------------------------------------
     CHANNEL_LAYERS_HOSTS_URL = values.Value(environ_required=True)
 
+    @property
+    def CHANNEL_HOST(self):
+        parsed = urlparse(self.CHANNEL_LAYERS_HOSTS_URL)
+        return parsed.hostname
+
+    @property
+    def CHANNEL_PORT(self):
+        parsed = urlparse(self.CHANNEL_LAYERS_HOSTS_URL)
+        return parsed.port
+
     @classmethod
     def post_setup(cls):
         super().post_setup()
@@ -360,8 +382,8 @@ class Prod(Dev):
         parsed = urlparse(redis_url)
 
         password = parsed.password if parsed.password else None
-        host = parsed.hostname or "localhost"
-        port = parsed.port or 6379
+        host = cls.CHANNEL_HOST or "localhost"
+        port = cls.CHANNEL_PORT or 6379
 
         cls.CHANNEL_LAYERS = {
             "default": {
