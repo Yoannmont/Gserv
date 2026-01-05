@@ -13,7 +13,7 @@ class GameFactory(DjangoModelFactory):
     slug = factory.LazyAttribute(lambda obj: slugify(obj.name))
     description = factory.Faker("text", max_nb_chars=200)
     docker_image = factory.Sequence(lambda n: f"game/image:{n}")
-    default_port = factory.Sequence(lambda n: 25565 + n)
+    default_port = factory.Sequence(lambda n: f"{25565 + n}")
     documentation_url = factory.Faker("url")
     is_active = True
 

@@ -1,3 +1,5 @@
+import re
+
 from django.core.validators import URLValidator
 from django.db import models
 
@@ -21,7 +23,11 @@ class Game(models.Model):
         verbose_name="Commande health check",
         help_text=("Commande à exécuter pour vérifier l'état du serveur. Si vide, utilise le statut du container Docker."),
     )
-    default_port = models.IntegerField(verbose_name="Port par défaut")
+    default_port = models.CharField(
+        max_length=20,
+        verbose_name="Port par défaut",
+        help_text="Port avec protocole optionnel (ex: '25565', '25565/tcp', '25565/udp')",
+    )
     additional_ports = models.JSONField(
         default=list,
         blank=True,
@@ -41,12 +47,44 @@ class Game(models.Model):
     def __str__(self):
         return self.name
 
+    def parse_default_port(self):
+        """
+        Parse default_port to extract port number and protocol.
+
+        Returns:
+            tuple: (port_number: int, protocol: str)
+            protocol can be 'tcp', 'udp', or 'both' (if not specified)
+        """
+        port_str = str(self.default_port).strip()
+
+        # Match format: "port/protocol" or just "port"
+        match = re.match(r"^(\d+)(?:/(tcp|udp))?$", port_str, re.IGNORECASE)
+
+        if not match:
+            # Try to parse as integer for backward compatibility
+            try:
+                port_num = int(port_str)
+                return port_num, "both"
+            except ValueError:
+                raise ValueError(f"Invalid default_port format: {port_str}")
+
+        port_num = int(match.group(1))
+        protocol = match.group(2)
+
+        if protocol:
+            return port_num, protocol.lower()
+        else:
+            # If no protocol specified, default to both (backward compatibility)
+            return port_num, "both"
+
     def get_all_ports(self):
         """Return all ports (default + additional)"""
+        port_num, protocol = self.parse_default_port()
+
         ports = [
             {
-                "port": self.default_port,
-                "protocol": "both",  # tcp and udp
+                "port": port_num,
+                "protocol": protocol,
                 "description": "Port principal",
                 "is_main": True,
             }

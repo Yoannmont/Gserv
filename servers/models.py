@@ -87,16 +87,19 @@ class ServerInstance(models.Model):
         """Return all port mappings for this server"""
         mappings = {}
 
-        # Main port (TCP + UDP)
-        mappings[f"{self.game.default_port}/tcp"] = self.port
-        mappings[f"{self.game.default_port}/udp"] = self.port
+        port_num, protocol = self.game.parse_default_port()
+
+        if protocol == "both":
+            mappings[f"{port_num}/tcp"] = self.port
+            mappings[f"{port_num}/udp"] = self.port
+        else:
+            mappings[f"{port_num}/{protocol}"] = self.port
 
         # Additional ports
         for game_port_info in self.game.additional_ports:
             game_port = game_port_info["port"]
             protocol = game_port_info.get("protocol", "tcp")
 
-            # Get custom mapping or use the same port
             host_port = self.additional_ports.get(str(game_port), game_port)
 
             if protocol == "both":

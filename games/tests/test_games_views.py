@@ -36,7 +36,7 @@ class TestGameViewSet:
             "slug": "new-game",
             "description": "A new game",
             "docker_image": "game/new:latest",
-            "default_port": 25565,
+            "default_port": "25565",
         }
 
         response = admin_client.post(url, data, format="json")
@@ -51,7 +51,7 @@ class TestGameViewSet:
             "slug": "new-game",
             "description": "A new game",
             "docker_image": "game/new:latest",
-            "default_port": 25565,
+            "default_port": "25565",
         }
 
         response = authenticated_client.post(url, data, format="json")
@@ -67,7 +67,7 @@ class TestGameViewSet:
             "game_id": game.id,
             "slug": "updated-game",
             "docker_image": "game/updated:latest",
-            "default_port": 44444,
+            "default_port": "44444",
             "documentation_url": "https://example.com",
             "is_active": True,
         }
@@ -79,7 +79,7 @@ class TestGameViewSet:
         assert game.name == "Updated Game"
         assert game.slug == "updated-game"
         assert game.docker_image == "game/updated:latest"
-        assert game.default_port == 44444
+        assert game.default_port == "44444"
         assert game.documentation_url == "https://example.com"
         assert game.is_active is True
 
@@ -89,7 +89,7 @@ class TestGameViewSet:
             name="Test Game",
             description="Test Description",
             docker_image="game/test:latest",
-            default_port=25565,
+            default_port="25565",
             documentation_url="https://example.com",
             is_active=True,
         )
@@ -99,7 +99,7 @@ class TestGameViewSet:
             "game_id": game.id,
             "slug": "updated-game",
             "docker_image": "game/updated:latest",
-            "default_port": 44444,
+            "default_port": "44444",
             "documentation_url": "https://example.com",
             "is_active": True,
         }
@@ -109,7 +109,7 @@ class TestGameViewSet:
         assert game.description == "New description"
         assert game.slug == "updated-game"
         assert game.docker_image == "game/updated:latest"
-        assert game.default_port == 44444
+        assert game.default_port == "44444"
         assert game.documentation_url == "https://example.com"
         assert game.is_active is True
 

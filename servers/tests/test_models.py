@@ -21,7 +21,7 @@ class TestServerInstanceModel:
         assert server.is_running is False
 
     def test_get_all_port_mappings_main_port_only(self):
-        game = GameFactory(default_port=25565, additional_ports=[])
+        game = GameFactory(default_port="25565", additional_ports=[])
         server = ServerInstanceFactory(game=game, port=30000)
 
         mappings = server.get_all_port_mappings()
@@ -29,9 +29,27 @@ class TestServerInstanceModel:
         assert mappings["25565/tcp"] == 30000
         assert mappings["25565/udp"] == 30000
 
+    def test_get_all_port_mappings_main_port_tcp_only(self):
+        game = GameFactory(default_port="25565/tcp", additional_ports=[])
+        server = ServerInstanceFactory(game=game, port=30000)
+
+        mappings = server.get_all_port_mappings()
+
+        assert mappings["25565/tcp"] == 30000
+        assert "25565/udp" not in mappings
+
+    def test_get_all_port_mappings_main_port_udp_only(self):
+        game = GameFactory(default_port="25565/udp", additional_ports=[])
+        server = ServerInstanceFactory(game=game, port=30000)
+
+        mappings = server.get_all_port_mappings()
+
+        assert mappings["25565/udp"] == 30000
+        assert "25565/tcp" not in mappings
+
     def test_get_all_port_mappings_with_additional_ports(self):
         game = GameFactory(
-            default_port=25565,
+            default_port="25565",
             additional_ports=[
                 {"port": 8080, "protocol": "tcp", "description": "Web"},
                 {"port": 27015, "protocol": "both", "description": "Query"},
