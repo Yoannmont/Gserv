@@ -1,8 +1,11 @@
+import logging
 import redis
 from django.conf import settings
 from django.db import connections
 from django.db.utils import OperationalError
 from django.http import JsonResponse
+
+logger = logging.getLogger(__name__)
 
 
 def health(request):
@@ -21,5 +24,6 @@ def health(request):
     except redis.ConnectionError:
         status["redis"] = False
 
+    logger.info(f"[health] Health check: {status}")
     status_code = 200 if all(status.values()) else 503
     return JsonResponse(status, status=status_code)
