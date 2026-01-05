@@ -15,3 +15,4 @@ logs
 assets
 migrations
 *.sqlite3
+docker-compose.yml

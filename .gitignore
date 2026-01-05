@@ -29,6 +29,8 @@ static
 .env
 .env.prod
 
+docker-compose.prod.yml
+
 celerybeat-schedule*
 *windows*
 
