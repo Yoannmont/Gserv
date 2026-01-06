@@ -204,3 +204,31 @@ class ServerMetricsAdmin(admin.ModelAdmin):
             },
         ),
     ]
+
+
+@admin.register(ServerBackup)
+class ServerBackup(admin.ModelAdmin):
+    list_display = ["name", "created_at", "created_by"]
+
+    search_fields = ["name"]
+
+    readonly_fields = ["created_at", "created_by", "mo_file_size"]
+    autocomplete_fields = ["created_by"]
+
+    def mo_file_size(self, obj):
+        return f"{obj.file_size / 1024 / 1024:.2f} MB"
+
+    fieldsets = [
+        ("Serveur", {"fields": ("server",)}),
+        (
+            "Infos",
+            {
+                "fields": (
+                    "name",
+                    "description",
+                    "file_path",
+                    "mo_file_size",
+                )
+            },
+        ),
+    ]
