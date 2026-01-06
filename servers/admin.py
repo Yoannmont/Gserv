@@ -1,6 +1,7 @@
 from django.contrib import admin
 
 from servers.models import (
+    ServerBackup,
     ServerConfiguration,
     ServerInstance,
     ServerMetrics,
@@ -13,6 +14,36 @@ class ServerConfigurationInline(admin.StackedInline):
     model = ServerConfiguration
     can_delete = False
     verbose_name_plural = "Configuration"
+
+
+class InstanceBackupInline(admin.TabularInline):
+    model = ServerBackup
+    verbose_name_plural = "Backups"
+    verbose_name = "Backup"
+    can_delete = False
+    readonly_fields = [
+        "name",
+        "description",
+        "mo_file_size",
+        "created_at",
+        "created_by",
+    ]
+    autocomplete_fields = ["created_by"]
+    fields = ["name", "description", "mo_file_size", "created_at", "created_by"]
+    list_display = ["name", "description", "file_size", "created_at", "created_by"]
+    list_filter = ["created_at", "created_by"]
+    search_fields = ["name", "description", "created_by__username"]
+    date_hierarchy = "created_at"
+    ordering = ["-created_at"]
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def mo_file_size(self, obj):
+        return f"{obj.file_size / 1024 / 1024:.2f} MB"
 
 
 @admin.register(ServerInstance)
@@ -37,7 +68,7 @@ class ServerInstanceAdmin(admin.ModelAdmin):
     ]
     search_fields = ["name", "owner__username", "description"]
     date_hierarchy = "created_at"
-    inlines = [ServerConfigurationInline]
+    inlines = [ServerConfigurationInline, InstanceBackupInline]
 
     fieldsets = [
         (
