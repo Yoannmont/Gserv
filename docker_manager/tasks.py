@@ -1,8 +1,13 @@
 import logging
+import os
+import shutil
+from datetime import timedelta
 
 from celery import shared_task
+from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
+from django.utils.text import slugify
 
 beat_logger = logging.getLogger("celery_beat")
 worker_logger = logging.getLogger("celery_worker")
@@ -269,6 +274,165 @@ def full_reset_server_task(self, server_id: int, delete_data: bool = False, user
     except Exception as e:
         worker_logger.error("[docker_manager] Task full reset failed for server_id=%s: %r", server_id, e)
         raise self.retry(exc=e, countdown=60)
+
+
+def _get_server_paths(server) -> tuple[str, str, str]:
+    """Return (base_path, data_path, backups_path)"""
+    base_path = settings.SERVERS_DATA_PATH
+    server_path = os.path.join(base_path, server.game.slug, str(server.id))
+    data_path = os.path.join(server_path, "data")
+    backups_path = os.path.join(server_path, "backups")
+    os.makedirs(backups_path, exist_ok=True)
+    return base_path, data_path, backups_path
+
+
+def _delete_backup_file(backup):
+    path = backup.absolute_path
+    if os.path.exists(path):
+        try:
+            os.remove(path)
+        except Exception as exc:
+            worker_logger.warning(f"[docker_manager] Unable to delete backup file {path}: {exc}")
+
+
+def _prune_old_backups(server, max_backups: int = 15, max_days: int = 7):
+    """Keep at most max_backups and remove backups older than max_days."""
+    from servers.models import ServerBackup
+
+    cutoff = timezone.now() - timedelta(days=max_days)
+    backups = ServerBackup.objects.filter(server=server).order_by("-created_at")
+    for idx, backup in enumerate(backups):
+        if idx >= max_backups or backup.created_at < cutoff:
+            _delete_backup_file(backup)
+            backup.delete()
+
+
+@shared_task(bind=True, max_retries=3)
+def create_backup_task(
+    self,
+    server_id: int,
+    user_id: int = None,
+    name: str | None = None,
+    description: str = "",
+    is_auto: bool = False,
+):
+    """
+    Create a compressed backup of /data into /backups for a server.
+    """
+    try:
+        from accounts.models import User
+        from servers.models import ServerBackup, ServerInstance
+
+        server = ServerInstance.objects.select_related("game").get(id=server_id)
+        user = User.objects.get(id=user_id) if user_id else None
+
+        base_path, data_path, backups_path = _get_server_paths(server)
+
+        timestamp = timezone.now().strftime("%Y%m%d-%H%M%S")
+        safe_name = slugify(name or (f"backup-{timestamp}"))
+        if not safe_name:
+            safe_name = f"backup-{timestamp}"
+        archive_base = os.path.join(backups_path, f"{safe_name}-{timestamp}")
+
+        # Create archive (zip) from data directory
+        archive_path = shutil.make_archive(archive_base, "zip", root_dir=data_path)
+        file_size = os.path.getsize(archive_path)
+        rel_path = os.path.relpath(archive_path, base_path)
+
+        with transaction.atomic():
+            ServerBackup.objects.create(
+                server=server,
+                name=name or safe_name,
+                description=description or ("Backup automatique" if is_auto else ""),
+                file_path=rel_path,
+                file_size=file_size,
+                created_by=user,
+            )
+
+        # Enforce retention
+        _prune_old_backups(server)
+
+        worker_logger.info(f"[docker_manager] Backup created for server {server.name}: {archive_path}")
+    except Exception as e:
+        worker_logger.error("[docker_manager] Task backup failed for server_id=%s: %r", server_id, e)
+        raise self.retry(exc=e, countdown=60)
+
+
+@shared_task(bind=True, max_retries=3)
+def restore_backup_task(self, server_id: int, backup_id: int, user_id: int = None):
+    """
+    Restore a backup: replace /data with the content of the archive.
+    """
+    try:
+        from accounts.models import User
+        from docker_manager.services.server_manager import get_server_manager
+        from servers.models import ServerBackup, ServerInstance, ServerStatus
+
+        server = ServerInstance.objects.select_related("game").get(id=server_id)
+        backup = ServerBackup.objects.get(id=backup_id, server=server)
+        manager = get_server_manager()
+        triggered_by = User.objects.get(id=user_id) if user_id else None
+
+        # Stop server if running
+        if server.is_running:
+            manager.stop_server(server)
+
+        base_path, data_path, _ = _get_server_paths(server)
+        archive_path = backup.absolute_path
+
+        # Clear existing data
+        if os.path.exists(data_path):
+            shutil.rmtree(data_path)
+        os.makedirs(data_path, exist_ok=True)
+
+        # Unpack archive into data directory
+        shutil.unpack_archive(archive_path, data_path)
+
+        # Record status/history
+        ServerStatus.objects.create(
+            server=server,
+            status=ServerInstance.STOPPED,
+            message=f"Sauvegarde restaurée: {backup.name}",
+            triggered_by=triggered_by,
+        )
+
+        worker_logger.info(f"[docker_manager] Backup restored for server {server.name} from {archive_path}")
+    except Exception as e:
+        worker_logger.error(
+            "[docker_manager] Task restore backup failed for server_id=%s: %r",
+            server_id,
+            e,
+        )
+        raise self.retry(exc=e, countdown=60)
+
+
+@shared_task
+def auto_backup_servers():
+    """
+    Create nightly backups for all servers.
+    """
+    from servers.models import ServerInstance
+
+    now = timezone.now()
+    for server in ServerInstance.objects.all():
+        create_backup_task.delay(
+            server.id,
+            None,
+            name=f"auto-{server.id}-{now.strftime('%Y%m%d')}",
+            description="Backup automatique quotidien",
+            is_auto=True,
+        )
+
+
+@shared_task
+def cleanup_old_backups():
+    """
+    Cleanup backups older than 7 days and enforce max 15 backups per server.
+    """
+    from servers.models import ServerInstance
+
+    for server in ServerInstance.objects.all():
+        _prune_old_backups(server)
 
 
 @shared_task

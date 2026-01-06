@@ -1,3 +1,4 @@
+import os
 import re
 
 from django.conf import settings
@@ -507,3 +508,44 @@ class ServerMetrics(models.Model):
 
     def __str__(self):
         return f"{self.server.name} - {self.created_at}"
+
+
+class ServerBackup(models.Model):
+    """Backup of a server data directory"""
+
+    server = models.ForeignKey(
+        ServerInstance,
+        on_delete=models.CASCADE,
+        related_name="backups",
+        verbose_name="Serveur",
+    )
+    name = models.CharField(max_length=150, verbose_name="Nom", unique=True, db_index=True)
+    description = models.TextField(blank=True, verbose_name="Description")
+    file_path = models.CharField(
+        max_length=500,
+        verbose_name="Chemin du fichier (relatif à SERVERS_DATA_PATH)",
+        help_text="Chemin relatif vers l'archive de sauvegarde",
+    )
+    file_size = models.BigIntegerField(default=0, verbose_name="Taille (octets)")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Date de création")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="server_backups",
+        verbose_name="Créé par",
+    )
+
+    class Meta:
+        verbose_name = "Sauvegarde de serveur"
+        verbose_name_plural = "Sauvegardes de serveurs"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Backup {self.name} ({self.server.name})"
+
+    @property
+    def absolute_path(self) -> str:
+        """Return absolute path to the backup file"""
+        return os.path.join(settings.SERVERS_DATA_PATH, self.file_path)

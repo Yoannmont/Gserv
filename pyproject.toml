@@ -23,5 +23,15 @@ exclude_also = [
     "def __str__",
 ]
 
+[tool.coverage.run]
+omit = [
+    "env/*",
+    "*/tests/*",
+    "*/migrations/*",
+    "*/__init__.py",
+    "*/__pycache__/*",
+    "asgi.py",
+]
+
 [tool.pylint.'MESSAGES CONTROL']
 disable = "too-many-arguments, not-callable, missing-function-docstring, missing-module-docstring"

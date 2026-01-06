@@ -369,7 +369,7 @@ class ServerManager:
 
     def _get_server_path(self, server_instance) -> str:
         """Return the server path"""
-        return os.path.join(self.base_path, server_instance.game.slug, f"server_{server_instance.id}")
+        return os.path.join(self.base_path, server_instance.game.slug, str(server_instance.id))
 
     def _get_docker_image(self, server_instance) -> str:
         """Build the full Docker image name"""

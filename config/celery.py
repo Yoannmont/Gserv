@@ -43,12 +43,15 @@ app.conf.beat_schedule = {
         "task": "docker_manager.tasks.delete_unused_containers",
         "schedule": crontab(hour=1, minute=0),
     },
+    "auto-backup-servers": {
+        "task": "docker_manager.tasks.auto_backup_servers",
+        "schedule": crontab(hour=3, minute=30),
+    },
+    "cleanup-old-backups": {
+        "task": "docker_manager.tasks.cleanup_old_backups",
+        "schedule": crontab(hour=4, minute=30),
+    },
 }
-
-
-@app.task(bind=True)
-def debug_task(self):
-    print(f"Request: {self.request!r}")
 
 
 # Add request_id to the headers of the task

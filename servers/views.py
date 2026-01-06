@@ -1,8 +1,13 @@
 import logging
+import os
 import traceback
 
 from celery import chain
+from django.core.signing import BadSignature, SignatureExpired, TimestampSigner
 from django.db import IntegrityError, models
+from django.http import FileResponse, Http404
+from django.urls import reverse
+from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, permissions, status, viewsets
 from rest_framework.decorators import action
@@ -15,15 +20,18 @@ import docker_manager
 import docker_manager.services
 import docker_manager.services.server_manager
 from docker_manager.tasks import (
+    create_backup_task,
     create_server_task,
     full_reset_server_task,
     restart_server_task,
+    restore_backup_task,
     start_server_task,
     stop_server_task,
     update_server_task,
 )
-from servers.models import ServerInstance, ServerMetrics, ServerStatus
+from servers.models import ServerBackup, ServerInstance, ServerMetrics, ServerStatus
 from servers.serializers import (
+    ServerBackupSerializer,
     ServerInstanceDetailSerializer,
     ServerInstanceListSerializer,
     ServerInstanceSerializer,
@@ -66,6 +74,13 @@ class IsServerRole(permissions.BasePermission):
                 "full_reset",
             ]:
                 return role.can_control
+            elif view.action in [
+                "backups",
+                "restore_backup",
+                "download_backup",
+                "delete_backup",
+            ]:
+                return role.can_edit
             elif view.action == "destroy":
                 return role.can_delete
             return role.can_view
@@ -714,6 +729,115 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
         except Exception as e:
             logger.error(f"[servers_instance_roles] Unexpected error id={pk} error={str(e)}")
             raise
+
+    def _get_backup_or_404(self, server, backup_id: int) -> ServerBackup:
+        try:
+            return server.backups.get(id=backup_id)
+        except ServerBackup.DoesNotExist:
+            raise Http404("Sauvegarde introuvable")
+
+    def _build_download_url(self, request, server, backup: ServerBackup) -> str:
+        signer = TimestampSigner(salt="backup-download")
+        token = signer.sign(str(backup.id))
+        url = reverse(
+            "server-download-backup",
+            kwargs={"pk": server.id, "backup_id": backup.id},
+            request=request,
+        )
+        return f"{url}?token={token}"
+
+    @action(detail=True, methods=["get", "post"], url_path="backups")
+    def backups(self, request, pk=None):
+        """List or create a backup request for this server."""
+        server = self.get_object()
+
+        if request.method.lower() == "get":
+            backups = server.backups.all().order_by("-created_at")
+            serializer = ServerBackupSerializer(backups, many=True)
+            return Response(serializer.data)
+
+        # POST: request a backup
+        name = request.data.get("name", f"backup-{server.name}-{timezone.now().strftime('%Y%m%d-%H%M%S')}")
+        description = request.data.get("description", "")
+
+        create_backup_task.delay(server.id, request.user.id, name, description, False)
+        return Response(
+            {"message": "Sauvegarde demandée, elle sera exécutée en arrière-plan."},
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path=r"backups/(?P<backup_id>[^/.]+)/restore",
+    )
+    def restore_backup(self, request, pk=None, backup_id=None):
+        server = self.get_object()
+        backup = self._get_backup_or_404(server, backup_id)
+
+        restore_backup_task.delay(server.id, backup.id, request.user.id)
+        return Response(
+            {"message": "Restauration demandée, elle sera exécutée en arrière-plan."},
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+    @action(
+        detail=True,
+        methods=["delete"],
+        url_path=r"backups/(?P<backup_id>[^/.]+)",
+    )
+    def delete_backup(self, request, pk=None, backup_id=None):
+        server = self.get_object()
+        backup = self._get_backup_or_404(server, backup_id)
+
+        backup_path = backup.absolute_path
+        if os.path.exists(backup_path):
+            try:
+                os.remove(backup_path)
+            except Exception as exc:
+                logger.warning(f"[servers_delete_backup] Failed to delete file {backup_path}: {exc}")
+
+        backup.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path=r"backups/(?P<backup_id>[^/.]+)/download-link",
+    )
+    def generate_download_link(self, request, pk=None, backup_id=None):
+        server = self.get_object()
+        backup = self._get_backup_or_404(server, backup_id)
+        url = self._build_download_url(request, server, backup)
+        return Response({"url": url})
+
+    @action(
+        detail=True,
+        methods=["get"],
+        url_path=r"backups/(?P<backup_id>[^/.]+)/download",
+    )
+    def download_backup(self, request, pk=None, backup_id=None):
+        server = self.get_object()
+        backup = self._get_backup_or_404(server, backup_id)
+
+        token = request.query_params.get("token")
+        signer = TimestampSigner(salt="backup-download")
+        try:
+            unsigned = signer.unsign(token, max_age=600)  # 10 minutes
+            if str(backup.id) != unsigned:
+                raise BadSignature("Token mismatch")
+        except (BadSignature, SignatureExpired):
+            return Response({"error": "Lien expiré ou invalide"}, status=status.HTTP_403_FORBIDDEN)
+
+        file_path = backup.absolute_path
+        if not os.path.exists(file_path):
+            raise Http404("Fichier de sauvegarde introuvable")
+
+        return FileResponse(
+            open(file_path, "rb"),
+            as_attachment=True,
+            filename=os.path.basename(file_path),
+        )
 
     @action(detail=True, methods=["get"])
     def metrics(self, request, pk=None):

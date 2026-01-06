@@ -3,6 +3,7 @@ from rest_framework import serializers
 
 from games.serializers import GameSerializer, GameVersionSerializer
 from servers.models import (
+    ServerBackup,
     ServerConfiguration,
     ServerInstance,
     ServerMetrics,
@@ -337,6 +338,22 @@ class ServerInstanceSerializer(serializers.ModelSerializer):
             ServerConfiguration.objects.create(server=instance, **configuration_data)
 
         return instance
+
+
+class ServerBackupSerializer(serializers.ModelSerializer):
+    created_by_username = serializers.CharField(source="created_by.username", read_only=True)
+
+    class Meta:
+        model = ServerBackup
+        fields = [
+            "id",
+            "name",
+            "description",
+            "file_size",
+            "created_at",
+            "created_by_username",
+        ]
+        read_only_fields = ["id", "file_size", "created_at", "created_by_username"]
 
 
 class ServerMetricsSerializer(serializers.ModelSerializer):
