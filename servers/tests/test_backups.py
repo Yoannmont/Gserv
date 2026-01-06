@@ -56,3 +56,14 @@ class TestServerBackupsAPI:
         assert response.status_code == status.HTTP_204_NO_CONTENT
         assert not os.path.exists(file_path)
         assert not ServerBackup.objects.filter(id=backup.id).exists()
+
+    def test_create_backup_with_max_backups(self, authenticated_client, user, prepare_servers_data_path):
+        server = ServerInstanceFactory(owner=user)
+        for i in range(settings.MAX_BACKUPS):
+            ServerBackup.objects.create(server=server, name=f"backup-{i}", description="Test", created_by=user)
+
+        url = reverse("server-backups", kwargs={"pk": server.id})
+        response = authenticated_client.post(url, {"name": "backup-1", "description": "Test"}, format="json")
+
+        assert response.status_code == status.HTTP_409_CONFLICT
+        assert response.data["error"] == "Le nombre maximum de sauvegardes a été atteint"

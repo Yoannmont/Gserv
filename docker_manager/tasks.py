@@ -295,7 +295,7 @@ def _delete_backup_file(backup):
             worker_logger.warning(f"[docker_manager] Unable to delete backup file {path}: {exc}")
 
 
-def _prune_old_backups(server, max_backups: int = 15, max_days: int = 7):
+def _prune_old_backups(server, max_backups: int = settings.MAX_BACKUPS, max_days: int = 7):
     """Keep at most max_backups and remove backups older than max_days."""
     from servers.models import ServerBackup
 
@@ -377,6 +377,13 @@ def restore_backup_task(self, server_id: int, backup_id: int, user_id: int = Non
         if server.is_running:
             manager.stop_server(server)
 
+        ServerStatus.objects.create(
+            server=server,
+            status=ServerInstance.STOPPED,
+            message=f"Sauvegarde restaurée: {backup.name}",
+            triggered_by=triggered_by,
+        )
+
         base_path, data_path, _ = _get_server_paths(server)
         archive_path = backup.absolute_path
 
@@ -388,11 +395,12 @@ def restore_backup_task(self, server_id: int, backup_id: int, user_id: int = Non
         # Unpack archive into data directory
         shutil.unpack_archive(archive_path, data_path)
 
-        # Record status/history
+        manager.start_server(server)
+
         ServerStatus.objects.create(
             server=server,
-            status=ServerInstance.STOPPED,
-            message=f"Sauvegarde restaurée: {backup.name}",
+            status=ServerInstance.STARTING,
+            message="Sauvegarde restaurée et serveur redémarré",
             triggered_by=triggered_by,
         )
 

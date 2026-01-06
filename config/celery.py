@@ -25,7 +25,7 @@ app.conf.beat_schedule = {
     },
     "sync-container-status": {
         "task": "docker_manager.tasks.sync_container_status",
-        "schedule": 30.0,
+        "schedule": 10.0,
     },
     "check-auto-update-servers": {
         "task": "docker_manager.tasks.check_auto_update_servers",

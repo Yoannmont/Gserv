@@ -102,6 +102,8 @@ class Dev(Configuration):
 
     DB_URL = values.Value(environ_required=True, environ_prefix=None)
 
+    MAX_BACKUPS = values.IntegerValue(default=15, environ_prefix=None)
+
     @property
     def DATABASES(self):
         return {

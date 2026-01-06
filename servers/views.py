@@ -3,6 +3,7 @@ import os
 import traceback
 
 from celery import chain
+from django.conf import settings
 from django.core.signing import BadSignature, SignatureExpired, TimestampSigner
 from django.db import IntegrityError, models
 from django.http import FileResponse, Http404
@@ -739,11 +740,7 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
     def _build_download_url(self, request, server, backup: ServerBackup) -> str:
         signer = TimestampSigner(salt="backup-download")
         token = signer.sign(str(backup.id))
-        url = reverse(
-            "server-download-backup",
-            kwargs={"pk": server.id, "backup_id": backup.id},
-            request=request,
-        )
+        url = reverse("server-download-backup", kwargs={"pk": server.id, "backup_id": backup.id})
         return f"{url}?token={token}"
 
     @action(detail=True, methods=["get", "post"], url_path="backups")
@@ -759,6 +756,12 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
         # POST: request a backup
         name = request.data.get("name", f"backup-{server.name}-{timezone.now().strftime('%Y%m%d-%H%M%S')}")
         description = request.data.get("description", "")
+
+        if server.backups.count() >= settings.MAX_BACKUPS:
+            return Response(
+                {"error": "Le nombre maximum de sauvegardes a été atteint"},
+                status=status.HTTP_409_CONFLICT,
+            )
 
         create_backup_task.delay(server.id, request.user.id, name, description, False)
         return Response(
