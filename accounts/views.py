@@ -10,12 +10,13 @@ from rest_framework.throttling import UserRateThrottle
 from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from accounts.models import User
 from accounts.serializers import (
     PasswordChangeSerializer,
     TokenObtainSerializer,
+    TokenRefreshSerializer,
     UserCreateSerializer,
     UserSerializer,
     UserUpdateSerializer,
@@ -42,6 +43,37 @@ class CustomTokenObtainPairView(TokenObtainPairView):
         except Exception as e:
             logger.error(f"[accounts_token_obtain] Unexpected error username={username} error={str(e)}")
             raise
+
+
+class CustomTokenRefreshView(TokenRefreshView):
+    serializer_class = TokenRefreshSerializer
+    throttle_classes = []
+
+    def post(self, request, *args, **kwargs):
+        logger.info("[accounts_token_refresh] Token refresh request")
+        try:
+            response = super().post(request, *args, **kwargs)
+            if response.status_code == 200:
+                logger.info("[accounts_token_refresh] Token refreshed successfully")
+            return response
+        except TokenError as e:
+            logger.warning(f"[accounts_token_refresh] Token error: {str(e)}")
+            return Response(
+                {"error": "Token de rafraîchissement invalide ou expiré"},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+        except DRFValidationError as e:
+            logger.warning(f"[accounts_token_refresh] Validation error: {str(e)}")
+            return Response(
+                {"error": "Erreur de validation", "details": e.detail},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as e:
+            logger.error(f"[accounts_token_refresh] Unexpected error: {str(e)}")
+            return Response(
+                {"error": "Une erreur est survenue lors du rafraîchissement du token"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
 
 class UserViewSet(viewsets.ModelViewSet):

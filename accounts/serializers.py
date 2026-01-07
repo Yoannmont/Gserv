@@ -1,7 +1,9 @@
 import logging
 
-from django.contrib.auth import authenticate
+from django.contrib.auth import authenticate, get_user_model
 from rest_framework import serializers
+from rest_framework_simplejwt.exceptions import AuthenticationFailed
+from rest_framework_simplejwt.settings import api_settings
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from accounts.models import User, UserProfile
@@ -82,6 +84,51 @@ class TokenObtainSerializer(serializers.Serializer):
             "access": str(refresh.access_token),
             "user": UserSerializer(user).data,
         }
+
+
+class TokenRefreshSerializer(serializers.Serializer):
+    refresh = serializers.CharField()
+    access = serializers.CharField(read_only=True)
+    token_class = RefreshToken
+
+    default_error_messages = {"no_active_account": "Aucun compte actif trouvé pour ce token."}
+
+    def validate(self, attrs):
+        refresh = self.token_class(attrs["refresh"])
+
+        user_id = refresh.payload.get(api_settings.USER_ID_CLAIM, None)
+        user = None
+        if user_id:
+            try:
+                user = get_user_model().objects.get(**{api_settings.USER_ID_FIELD: user_id})
+            except get_user_model().DoesNotExist:
+                pass
+
+        if not user or not api_settings.USER_AUTHENTICATION_RULE(user):
+            raise AuthenticationFailed(
+                self.error_messages["no_active_account"],
+                "no_active_account",
+            )
+
+        data = {"access": str(refresh.access_token)}
+
+        if api_settings.ROTATE_REFRESH_TOKENS:
+            if api_settings.BLACKLIST_AFTER_ROTATION:
+                try:
+                    refresh.blacklist()
+                except AttributeError:
+                    pass
+
+            refresh.set_jti()
+            refresh.set_exp()
+            refresh.set_iat()
+            refresh.outstand()
+
+            data["refresh"] = str(refresh)
+
+        data["user"] = UserSerializer(user).data
+
+        return data
 
 
 class UserUpdateSerializer(serializers.ModelSerializer):
