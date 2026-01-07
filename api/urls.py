@@ -1,9 +1,9 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
+from rest_framework_simplejwt.views import TokenRefreshView
 
 from accounts.views import (
     CustomTokenObtainPairView,
-    CustomTokenRefreshView,
     TokenLogoutView,
     UserViewSet,
 )
@@ -11,6 +11,11 @@ from games.views import GameViewSet
 from servers.views import (
     ServerInstanceViewSet,
 )
+
+
+class NoThrottleTokenRefreshView(TokenRefreshView):
+    throttle_classes = []
+
 
 router = DefaultRouter()
 
@@ -23,7 +28,7 @@ router.register(r"servers", ServerInstanceViewSet, basename="server")
 
 urlpatterns = [
     path("auth/login/", CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),
-    path("auth/refresh/", CustomTokenRefreshView.as_view(), name="token_refresh"),
+    path("auth/refresh/", NoThrottleTokenRefreshView.as_view(), name="token_refresh"),
     path("auth/logout/", TokenLogoutView.as_view(), name="token_logout"),
     path("", include(router.urls)),
 ]
