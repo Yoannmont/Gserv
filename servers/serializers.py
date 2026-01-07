@@ -21,12 +21,23 @@ class ServerConfigurationSerializer(serializers.ModelSerializer):
             "memory_limit",
             "cpu_limit",
             "custom_startup_command",
+            "backup_paths",
         ]
 
     def validate_docker_volumes(self, value):
         if not isinstance(value, dict):
             raise serializers.ValidationError("Docker volumes must be a dict")
 
+        return value
+
+    def validate_backup_paths(self, value):
+        if not isinstance(value, list):
+            raise serializers.ValidationError("backup_paths doit être une liste de chemins")
+        for path in value:
+            if not isinstance(path, str):
+                raise serializers.ValidationError("Chaque chemin doit être une chaîne de caractères")
+            if path.startswith("/") or ".." in path:
+                raise serializers.ValidationError("Les chemins doivent être relatifs et sans '..'")
         return value
 
 
@@ -272,7 +283,6 @@ class ServerInstanceSerializer(serializers.ModelSerializer):
         payload_configuration = data.get("configuration")
         force = data.get("force", False)
 
-        # Computing final configuration (defaults game -> existing config -> payload)
         default_game_configuration = ServerInstance.get_default_configuration_for_game(game)
         existing_server_configuration = {}
         if server_instance and hasattr(server_instance, "configuration"):
@@ -283,6 +293,7 @@ class ServerInstanceSerializer(serializers.ModelSerializer):
                     "memory_limit": server_instance.configuration.memory_limit,
                     "cpu_limit": server_instance.configuration.cpu_limit,
                     "custom_startup_command": server_instance.configuration.custom_startup_command,
+                    "backup_paths": server_instance.configuration.backup_paths,
                 }
             except Exception:
                 pass

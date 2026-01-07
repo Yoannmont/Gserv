@@ -90,6 +90,7 @@ class TestServerInstanceViewSet:
                 "memory_limit": "2g",
                 "cpu_limit": 2.0,
                 "custom_startup_command": "",
+                "backup_paths": [],
             },
         }
 

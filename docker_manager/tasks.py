@@ -1,6 +1,5 @@
 import logging
 import os
-import shutil
 from datetime import timedelta
 
 from celery import shared_task
@@ -317,13 +316,15 @@ def create_backup_task(
     is_auto: bool = False,
 ):
     """
-    Create a compressed backup of /data into /backups for a server.
+    Create a compressed backup of /data (or specific paths) into /backups for a server.
     """
+    import zipfile
+
     try:
         from accounts.models import User
         from servers.models import ServerBackup, ServerInstance
 
-        server = ServerInstance.objects.select_related("game").get(id=server_id)
+        server = ServerInstance.objects.select_related("game", "configuration").get(id=server_id)
         user = User.objects.get(id=user_id) if user_id else None
 
         base_path, data_path, backups_path = _get_server_paths(server)
@@ -332,10 +333,34 @@ def create_backup_task(
         safe_name = slugify(name or (f"backup-{timestamp}"))
         if not safe_name:
             safe_name = f"backup-{timestamp}"
-        archive_base = os.path.join(backups_path, f"{safe_name}-{timestamp}")
 
-        # Create archive (zip) from data directory
-        archive_path = shutil.make_archive(archive_base, "zip", root_dir=data_path)
+        archive_path = os.path.join(backups_path, f"{safe_name}-{timestamp}.zip")
+
+        backup_paths = []
+        if hasattr(server, "configuration"):
+            backup_paths = server.configuration.get_backup_paths()
+
+        with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+            if backup_paths:
+                for rel_path_item in backup_paths:
+                    full_path = os.path.join(data_path, rel_path_item)
+                    if os.path.exists(full_path):
+                        if os.path.isdir(full_path):
+                            for root, _, files in os.walk(full_path):
+                                for file in files:
+                                    file_path = os.path.join(root, file)
+                                    arcname = os.path.relpath(file_path, data_path)
+                                    zipf.write(file_path, arcname)
+                        else:
+                            arcname = os.path.relpath(full_path, data_path)
+                            zipf.write(full_path, arcname)
+            else:
+                for root, _, files in os.walk(data_path):
+                    for file in files:
+                        file_path = os.path.join(root, file)
+                        arcname = os.path.relpath(file_path, data_path)
+                        zipf.write(file_path, arcname)
+
         file_size = os.path.getsize(archive_path)
         rel_path = os.path.relpath(archive_path, base_path)
 
@@ -349,7 +374,6 @@ def create_backup_task(
                 created_by=user,
             )
 
-        # Enforce retention
         _prune_old_backups(server)
 
         worker_logger.info(f"[docker_manager] Backup created for server {server.name}: {archive_path}")
@@ -361,8 +385,10 @@ def create_backup_task(
 @shared_task(bind=True, max_retries=3)
 def restore_backup_task(self, server_id: int, backup_id: int, user_id: int = None):
     """
-    Restore a backup: replace /data with the content of the archive.
+    Restore a backup: extract the archive content into /data (overwrites existing files).
     """
+    import zipfile
+
     try:
         from accounts.models import User
         from docker_manager.services.server_manager import get_server_manager
@@ -373,27 +399,33 @@ def restore_backup_task(self, server_id: int, backup_id: int, user_id: int = Non
         manager = get_server_manager()
         triggered_by = User.objects.get(id=user_id) if user_id else None
 
-        # Stop server if running
         if server.is_running:
             manager.stop_server(server)
 
         ServerStatus.objects.create(
             server=server,
             status=ServerInstance.STOPPED,
-            message=f"Sauvegarde restaurée: {backup.name}",
+            message=f"Restauration de la sauvegarde: {backup.name}",
             triggered_by=triggered_by,
         )
 
-        base_path, data_path, _ = _get_server_paths(server)
+        _, data_path, _ = _get_server_paths(server)
         archive_path = backup.absolute_path
 
-        # Clear existing data
-        if os.path.exists(data_path):
-            shutil.rmtree(data_path)
         os.makedirs(data_path, exist_ok=True)
 
-        # Unpack archive into data directory
-        shutil.unpack_archive(archive_path, data_path)
+        with zipfile.ZipFile(archive_path, "r") as zipf:
+            for member in zipf.namelist():
+                target_path = os.path.join(data_path, member)
+                if member.endswith("/"):
+                    os.makedirs(target_path, exist_ok=True)
+                else:
+                    target_dir = os.path.dirname(target_path)
+                    if target_dir:
+                        os.makedirs(target_dir, exist_ok=True)
+                    if os.path.exists(target_path):
+                        os.remove(target_path)
+                    zipf.extract(member, data_path)
 
         manager.start_server(server)
 

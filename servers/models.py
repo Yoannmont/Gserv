@@ -294,6 +294,7 @@ class ServerInstance(models.Model):
             "environment_variables": {},
             "docker_volumes": {},
             "custom_startup_command": "",
+            "backup_paths": [],
         }
 
         if game:
@@ -337,6 +338,13 @@ class ServerConfiguration(models.Model):
     )
     cpu_limit = models.FloatField(default=2.0, verbose_name="Limite CPU", help_text="Nombre de CPUs (ex: 2.0)")
     custom_startup_command = models.TextField(blank=True, verbose_name="Commande de démarrage personnalisée")
+    backup_paths = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name="Chemins de sauvegarde",
+        help_text='Liste des chemins relatifs à /data à inclure dans les backups (ex: ["world", "config"]). '
+        "Si vide, tout /data est sauvegardé.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -346,6 +354,24 @@ class ServerConfiguration(models.Model):
 
     def __str__(self):
         return f"Configuration de {self.server.name}"
+
+    def get_backup_paths(self):
+        """
+        Returns backup paths for the server.
+        Priority: ServerConfiguration.backup_paths > GameConfiguration.config_data.backup_paths
+        If empty, returns an empty list (means backup complete of /data).
+        """
+        if self.backup_paths:
+            return self.backup_paths
+
+        try:
+            game_config = self.server.game.configurations.filter(is_default=True).first()
+            if game_config and game_config.config_data:
+                return game_config.config_data.get("backup_paths", [])
+        except Exception:
+            pass
+
+        return []
 
 
 class ServerStatus(models.Model):

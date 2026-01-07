@@ -137,7 +137,8 @@ class GameConfiguration(models.Model):
         help_text=(
             "Configuration par défaut pour les nouveaux serveurs. "
             'Peut contenir: {"memory_limit": "2g", "cpu_limit": 2.0, '
-            '"environment_variables": {}, "docker_volumes": {}, "custom_startup_command": ""}'
+            '"environment_variables": {}, "docker_volumes": {}, "custom_startup_command": "", '
+            '"backup_paths": ["world", "config"]}'
         ),
     )
     created_at = models.DateTimeField(auto_now_add=True)
