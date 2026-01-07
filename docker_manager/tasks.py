@@ -32,14 +32,10 @@ def create_server_task(self, server_id):
         server.container_id = container_id
         server.save(update_fields=["container_id"])
 
-        worker_logger.info(
-            f"[docker_manager] Server {server.name} created with container_id: {server.container_id}"
-        )
+        worker_logger.info(f"[docker_manager] Server {server.name} created with container_id: {server.container_id}")
 
     except Exception as e:
-        worker_logger.error(
-            "[docker_manager] Task create failed for server_id=%s: %r", server_id, e
-        )
+        worker_logger.error("[docker_manager] Task create failed for server_id=%s: %r", server_id, e)
         raise self.retry(exc=e, countdown=60)
 
 
@@ -75,14 +71,10 @@ def start_server_task(self, server_id: int, user_id: int = None):
             triggered_by=triggered_by,
         )
 
-        worker_logger.info(
-            f"[docker_manager] Server {server.name} started with container_id: {server.container_id}"
-        )
+        worker_logger.info(f"[docker_manager] Server {server.name} started with container_id: {server.container_id}")
 
     except Exception as e:
-        worker_logger.error(
-            "[docker_manager] Task start failed for server_id=%s: %r", server_id, e
-        )
+        worker_logger.error("[docker_manager] Task start failed for server_id=%s: %r", server_id, e)
 
         # Update status to error
         try:
@@ -96,9 +88,7 @@ def start_server_task(self, server_id: int, user_id: int = None):
                 message=f"Erreur lors du démarrage: {str(e)}",
             )
         except Exception as e:
-            worker_logger.critical(
-                "[docker_manager] Task start failed for server_id=%s : %r", server_id, e
-            )
+            worker_logger.critical("[docker_manager] Task start failed for server_id=%s : %r", server_id, e)
 
         # Retry if possible
         raise self.retry(exc=e, countdown=60)
@@ -138,14 +128,10 @@ def stop_server_task(self, server_id: int, user_id: int = None):
             triggered_by=triggered_by,
         )
 
-        worker_logger.info(
-            f"[docker_manager] Server {server.name} stopped with container_id: {server.container_id}"
-        )
+        worker_logger.info(f"[docker_manager] Server {server.name} stopped with container_id: {server.container_id}")
 
     except Exception as e:
-        worker_logger.error(
-            "[docker_manager] Task stop failed for server_id=%s: %r", server_id, e
-        )
+        worker_logger.error("[docker_manager] Task stop failed for server_id=%s: %r", server_id, e)
         raise self.retry(exc=e, countdown=60)
 
 
@@ -183,9 +169,7 @@ def restart_server_task(self, server_id: int, user_id: int = None):
             triggered_by=triggered_by,
         )
 
-        worker_logger.info(
-            f"[docker_manager] Server {server.name} restarted with container_id: {server.container_id}"
-        )
+        worker_logger.info(f"[docker_manager] Server {server.name} restarted with container_id: {server.container_id}")
 
     except Exception as e:
         worker_logger.error(f"Erreur lors du redémarrage du serveur {server_id}: {e}")
@@ -193,9 +177,7 @@ def restart_server_task(self, server_id: int, user_id: int = None):
 
 
 @shared_task(bind=True, max_retries=3)
-def update_server_task(
-    self, server_id: int, new_version_id: int = None, user_id: int = None
-):
+def update_server_task(self, server_id: int, new_version_id: int = None, user_id: int = None):
     """
     Async task to update a server
 
@@ -235,14 +217,10 @@ def update_server_task(
             triggered_by=triggered_by,
         )
 
-        worker_logger.info(
-            f"[docker_manager] Server {server.name} updated with container_id: {server.container_id}"
-        )
+        worker_logger.info(f"[docker_manager] Server {server.name} updated with container_id: {server.container_id}")
 
     except Exception as e:
-        worker_logger.error(
-            "[docker_manager] Task update failed for server_id=%s: %r", server_id, e
-        )
+        worker_logger.error("[docker_manager] Task update failed for server_id=%s: %r", server_id, e)
 
         try:
             server = ServerInstance.objects.get(id=server_id)
@@ -259,9 +237,7 @@ def update_server_task(
 
 
 @shared_task(bind=True, max_retries=3)
-def full_reset_server_task(
-    self, server_id: int, delete_data: bool = False, user_id: int = None
-):
+def full_reset_server_task(self, server_id: int, delete_data: bool = False, user_id: int = None):
     """
     Async task to full reset a server
 
@@ -293,13 +269,9 @@ def full_reset_server_task(
             triggered_by=triggered_by,
         )
 
-        worker_logger.info(
-            f"[docker_manager] Server {server.name} full reset with container_id: {server.container_id}"
-        )
+        worker_logger.info(f"[docker_manager] Server {server.name} full reset with container_id: {server.container_id}")
     except Exception as e:
-        worker_logger.error(
-            "[docker_manager] Task full reset failed for server_id=%s: %r", server_id, e
-        )
+        worker_logger.error("[docker_manager] Task full reset failed for server_id=%s: %r", server_id, e)
         raise self.retry(exc=e, countdown=60)
 
 
@@ -319,14 +291,10 @@ def _delete_backup_file(backup):
         try:
             os.remove(path)
         except Exception as exc:
-            worker_logger.warning(
-                f"[docker_manager] Unable to delete backup file {path}: {exc}"
-            )
+            worker_logger.warning(f"[docker_manager] Unable to delete backup file {path}: {exc}")
 
 
-def _prune_old_backups(
-    server, max_backups: int = settings.MAX_BACKUPS, max_days: int = 7
-):
+def _prune_old_backups(server, max_backups: int = settings.MAX_BACKUPS, max_days: int = 7):
     """Keep at most max_backups and remove backups older than max_days."""
     from servers.models import ServerBackup
 
@@ -343,9 +311,7 @@ def _prune_old_auto_backups(server, max_days: int = 7):
     from servers.models import ServerBackup
 
     cutoff = timezone.now() - timedelta(days=max_days)
-    auto_backups = ServerBackup.objects.filter(
-        server=server, created_by__isnull=True
-    ).filter(created_at__lt=cutoff)
+    auto_backups = ServerBackup.objects.filter(server=server, created_by__isnull=True).filter(created_at__lt=cutoff)
     for backup in auto_backups:
         _delete_backup_file(backup)
         backup.delete()
@@ -369,9 +335,7 @@ def create_backup_task(
         from accounts.models import User
         from servers.models import ServerBackup, ServerInstance
 
-        server = ServerInstance.objects.select_related("game", "configuration").get(
-            id=server_id
-        )
+        server = ServerInstance.objects.select_related("game", "configuration").get(id=server_id)
         user = User.objects.get(id=user_id) if user_id else None
 
         base_path, data_path, backups_path = _get_server_paths(server)
@@ -423,13 +387,9 @@ def create_backup_task(
 
         _prune_old_backups(server)
 
-        worker_logger.info(
-            f"[docker_manager] Backup created for server {server.name}: {archive_path}"
-        )
+        worker_logger.info(f"[docker_manager] Backup created for server {server.name}: {archive_path}")
     except Exception as e:
-        worker_logger.error(
-            "[docker_manager] Task backup failed for server_id=%s: %r", server_id, e
-        )
+        worker_logger.error("[docker_manager] Task backup failed for server_id=%s: %r", server_id, e)
         raise self.retry(exc=e, countdown=60)
 
 
@@ -487,9 +447,7 @@ def restore_backup_task(self, server_id: int, backup_id: int, user_id: int = Non
             triggered_by=triggered_by,
         )
 
-        worker_logger.info(
-            f"[docker_manager] Backup restored for server {server.name} from {archive_path}"
-        )
+        worker_logger.info(f"[docker_manager] Backup restored for server {server.name} from {archive_path}")
     except Exception as e:
         worker_logger.error(
             "[docker_manager] Task restore backup failed for server_id=%s: %r",
@@ -561,9 +519,7 @@ def collect_server_metrics():
                     e,
                 )
 
-        beat_logger.info(
-            f"[docker_manager] Metrics collected for {running_servers.count()} servers"
-        )
+        beat_logger.info(f"[docker_manager] Metrics collected for {running_servers.count()} servers")
 
     except Exception as e:
         beat_logger.error("[docker_manager] Error during metrics collection: %r", e)
@@ -578,28 +534,18 @@ def check_auto_update_servers():
         from games.models import GameVersion
         from servers.models import ServerInstance
 
-        servers = ServerInstance.objects.filter(
-            auto_update=True, status=ServerInstance.STOPPED
-        )
+        servers = ServerInstance.objects.filter(auto_update=True, status=ServerInstance.STOPPED)
 
         for server in servers:
             try:
                 # Check if there is a newer recommended version
-                recommended = (
-                    GameVersion.objects.filter(game=server.game)
-                    .order_by("-release_date")
-                    .first()
-                )
+                recommended = GameVersion.objects.filter(game=server.game).order_by("-release_date").first()
 
                 if recommended and recommended != server.game_version:
-                    beat_logger.info(
-                        f"[docker_manager] Auto-updating {server.name} to {recommended.version}"
-                    )
+                    beat_logger.info(f"[docker_manager] Auto-updating {server.name} to {recommended.version}")
 
                     # Launch the update
-                    update_server_task.delay(
-                        server_id=server.id, new_version_id=recommended.id
-                    )
+                    update_server_task.delay(server_id=server.id, new_version_id=recommended.id)
 
             except Exception as e:
                 beat_logger.error(
@@ -607,9 +553,7 @@ def check_auto_update_servers():
                     e,
                 )
 
-        beat_logger.info(
-            f"[docker_manager] Auto-update check completed for {servers.count()} servers"
-        )
+        beat_logger.info(f"[docker_manager] Auto-update check completed for {servers.count()} servers")
 
     except Exception as e:
         beat_logger.error("[docker_manager] Error during auto-update check: %r", e)
@@ -627,9 +571,7 @@ def cleanup_old_metrics():
         from servers.models import ServerMetrics
 
         cutoff_date = timezone.now() - timedelta(days=7)
-        deleted_count = ServerMetrics.objects.filter(
-            created_at__lt=cutoff_date
-        ).delete()[0]
+        deleted_count = ServerMetrics.objects.filter(created_at__lt=cutoff_date).delete()[0]
 
         beat_logger.info(f"[docker_manager] {deleted_count} old metrics deleted")
 
@@ -648,9 +590,7 @@ def cleanup_old_status_history():
         from servers.models import ServerStatus
 
         cutoff_date = timezone.now() - timedelta(days=30)
-        deleted_count = ServerStatus.objects.filter(
-            created_at__lt=cutoff_date
-        ).delete()[0]
+        deleted_count = ServerStatus.objects.filter(created_at__lt=cutoff_date).delete()[0]
 
         beat_logger.info(f"[docker_manager] {deleted_count} old statuses deleted")
 
@@ -670,9 +610,7 @@ def sync_container_status():
         manager = get_server_manager()
         servers = ServerInstance.objects.exclude(container_id__isnull=True)
 
-        beat_logger.info(
-            f"[docker_manager] Synchronizing status for {servers.count()} servers"
-        )
+        beat_logger.info(f"[docker_manager] Synchronizing status for {servers.count()} servers")
 
         for server in servers:
             try:
@@ -692,9 +630,7 @@ def sync_container_status():
                             ),
                         )
                         server.save(update_fields=["status"])
-                        beat_logger.info(
-                            f"[docker_manager] Status synchronized for {server.name}: {new_status}"
-                        )
+                        beat_logger.info(f"[docker_manager] Status synchronized for {server.name}: {new_status}")
 
             except Exception as e:
                 beat_logger.error(
@@ -702,9 +638,7 @@ def sync_container_status():
                     e,
                 )
 
-        beat_logger.info(
-            f"[docker_manager] Status synchronization completed for {servers.count()} servers"
-        )
+        beat_logger.info(f"[docker_manager] Status synchronization completed for {servers.count()} servers")
 
     except Exception as e:
         beat_logger.error("[docker_manager] Error during status synchronization: %r", e)
@@ -721,6 +655,4 @@ def delete_unused_containers():
         manager = get_server_manager()
         manager.delete_unused_containers()
     except Exception as e:
-        beat_logger.error(
-            "[docker_manager] Error during unused containers deletion: %r", e
-        )
+        beat_logger.error("[docker_manager] Error during unused containers deletion: %r", e)
