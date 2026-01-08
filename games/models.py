@@ -10,7 +10,9 @@ class Game(models.Model):
     name = models.CharField(max_length=100, unique=True, verbose_name="Nom du jeu")
     slug = models.SlugField(unique=True, verbose_name="Slug", db_index=True)
     description = models.TextField(verbose_name="Description")
-    icon = models.ImageField(upload_to="games/icons/", null=True, blank=True, verbose_name="Icône")
+    icon = models.ImageField(
+        upload_to="games/icons/", null=True, blank=True, verbose_name="Icône"
+    )
     docker_image = models.CharField(
         max_length=255,
         verbose_name="Image Docker",
@@ -21,7 +23,9 @@ class Game(models.Model):
         blank=True,
         null=True,
         verbose_name="Commande health check",
-        help_text=("Commande à exécuter pour vérifier l'état du serveur. Si vide, utilise le statut du container Docker."),
+        help_text=(
+            "Commande à exécuter pour vérifier l'état du serveur. Si vide, utilise le statut du container Docker."
+        ),
     )
     default_port = models.CharField(
         max_length=20,
@@ -34,7 +38,9 @@ class Game(models.Model):
         verbose_name="Ports additionnels",
         help_text='Liste de ports supplémentaires: [{"port": 27015, "protocol": "udp", "description": "Query port"}]',
     )
-    documentation_url = models.URLField(blank=True, validators=[URLValidator()], verbose_name="URL de documentation")
+    documentation_url = models.URLField(
+        blank=True, validators=[URLValidator()], verbose_name="URL de documentation"
+    )
     is_active = models.BooleanField(default=True, verbose_name="Actif", db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -104,11 +110,19 @@ class Game(models.Model):
 
 
 class GameVersion(models.Model):
-    game = models.ForeignKey(Game, on_delete=models.CASCADE, related_name="versions", verbose_name="Jeu")
-    version = models.CharField(max_length=50, verbose_name="Version", help_text="Ex: 1.20.4, latest")
-    release_date = models.DateField(null=True, blank=True, verbose_name="Date de sortie")
+    game = models.ForeignKey(
+        Game, on_delete=models.CASCADE, related_name="versions", verbose_name="Jeu"
+    )
+    version = models.CharField(
+        max_length=50, verbose_name="Version", help_text="Ex: 1.20.4, latest"
+    )
+    release_date = models.DateField(
+        null=True, blank=True, verbose_name="Date de sortie"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
-    docker_tag = models.CharField(max_length=40, verbose_name="Tag docker", help_text="Ex: java16", db_index=True)
+    docker_tag = models.CharField(
+        max_length=40, verbose_name="Tag docker", help_text="Ex: java16", db_index=True
+    )
 
     class Meta:
         verbose_name = "Version de jeu"
@@ -127,9 +141,13 @@ class GameConfiguration(models.Model):
         related_name="configurations",
         verbose_name="Jeu",
     )
-    name = models.CharField(max_length=100, verbose_name="Nom de la configuration", db_index=True)
+    name = models.CharField(
+        max_length=100, verbose_name="Nom de la configuration", db_index=True
+    )
     description = models.TextField(blank=True, verbose_name="Description")
-    is_default = models.BooleanField(default=False, verbose_name="Configuration par défaut", db_index=True)
+    is_default = models.BooleanField(
+        default=False, verbose_name="Configuration par défaut", db_index=True
+    )
     config_data = models.JSONField(
         default=dict,
         blank=True,
@@ -148,13 +166,6 @@ class GameConfiguration(models.Model):
         verbose_name = "Configuration de jeu"
         verbose_name_plural = "Configurations de jeux"
         ordering = ["game", "name"]
-        constraints = [
-            models.UniqueConstraint(
-                fields=["game", "is_default"],
-                condition=models.Q(is_default=True),
-                name="unique_default_per_game",
-            )
-        ]
 
     def __str__(self):
         return f"{self.game.name} - {self.name}"
