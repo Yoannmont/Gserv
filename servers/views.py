@@ -78,8 +78,8 @@ class IsServerRole(permissions.BasePermission):
             elif view.action in [
                 "backups",
                 "restore_backup",
-                "download_backup",
                 "delete_backup",
+                "generate_download_link",
             ]:
                 return role.can_edit
             elif view.action == "destroy":
@@ -111,6 +111,11 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
     ordering_fields = ["name", "created_at", "last_started_at"]
     ordering = ["-created_at"]
     SERVER_MANAGER = docker_manager.services.server_manager.get_server_manager()
+
+    def get_permissions(self):
+        if self.action == "download_backup":
+            return [permissions.AllowAny()]
+        return super().get_permissions()
 
     def get_queryset(self):
         user = self.request.user

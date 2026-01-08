@@ -29,4 +29,4 @@ python-json-logger==4.0.0
 
 django-request-id==1.0.0
 
-psycopg2-binary==2.9.11
+mysqlclient==2.2.7

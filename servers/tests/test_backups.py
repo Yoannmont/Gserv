@@ -67,3 +67,50 @@ class TestServerBackupsAPI:
 
         assert response.status_code == status.HTTP_409_CONFLICT
         assert response.data["error"] == "Le nombre maximum de sauvegardes a été atteint"
+
+    def test_download_backup_unauthenticated(self, authenticated_client, api_client, user, prepare_servers_data_path):
+        server = ServerInstanceFactory(owner=user)
+        fake_backup_filepath = os.path.join(
+            settings.SERVERS_DATA_PATH,
+            server.game.slug,
+            str(server.id),
+            "backups",
+            "backup-1.zip",
+        )
+        print(fake_backup_filepath)
+        os.makedirs(os.path.dirname(fake_backup_filepath), exist_ok=True)
+        with open(fake_backup_filepath, "wb") as f:
+            f.write(b"test-backup")
+        backup = ServerBackup.objects.create(
+            server=server,
+            name="backup-1",
+            description="Test",
+            created_by=user,
+            file_path=fake_backup_filepath,
+        )
+
+        download_url = reverse(
+            "server-generate-download-link",
+            kwargs={"pk": server.id, "backup_id": backup.id},
+        )
+        response = authenticated_client.post(download_url)
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["url"] is not None
+        url = response.data["url"]
+
+        response = api_client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.headers["Content-Disposition"] == 'attachment; filename="backup-1.zip"'
+
+        os.remove(fake_backup_filepath)
+
+    def test_download_backup_with_invalid_token(self, authenticated_client, user, prepare_servers_data_path):
+        server = ServerInstanceFactory(owner=user)
+        backup = ServerBackup.objects.create(server=server, name="backup-1", description="Test", created_by=user)
+
+        url = reverse("server-download-backup", kwargs={"pk": server.id, "backup_id": backup.id})
+        response = authenticated_client.get(url, {"token": "invalid-token"})
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert response.data["error"] == "Lien expiré ou invalide"

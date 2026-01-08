@@ -10,7 +10,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from accounts.models import UserProfile
 from docker_manager.tests.docker_mockup import DockerClientMockup
 
-os.environ.setdefault("DJANGO_CONFIGURATION", "Test")
+os.environ["DJANGO_CONFIGURATION"] = "Test"
 
 
 @pytest.fixture
