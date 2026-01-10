@@ -182,6 +182,8 @@ prompt-toolkit==3.0.52
     # via
     #   click-repl
     #   ipython
+psycopg2==2.9.11
+    # via -r requirements/requirements_prod.in
 ptyprocess==0.7.0
     # via pexpect
 pure-eval==0.2.3
