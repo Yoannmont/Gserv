@@ -52,7 +52,9 @@ class UserCreateSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         if data["password"] != data["password_confirm"]:
-            raise serializers.ValidationError({"password_confirm": "Les mots de passe ne correspondent pas"})
+            raise serializers.ValidationError(
+                {"password_confirm": "Les mots de passe ne correspondent pas"}
+            )
         return data
 
     def create(self, validated_data):
@@ -80,7 +82,9 @@ class TokenObtainSerializer(serializers.Serializer):
         return {
             "refresh": str(refresh),
             "access": str(refresh.access_token),
-            "user": UserSerializer(user).data,
+            "user": UserSerializer(
+                user, context={"request": self.context["request"]}
+            ).data,
         }
 
 
