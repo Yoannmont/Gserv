@@ -15,14 +15,16 @@ def health(request):
     try:
         connections["default"].cursor()
         status["database"] = True
-    except OperationalError:
+    except OperationalError as e:
+        logger.error(f"[health] Database connection error: {e}")
         status["database"] = False
 
     try:
         r = redis.Redis(host=settings.CHANNEL_HOST, port=settings.CHANNEL_PORT, db=1)
         r.ping()
         status["redis"] = True
-    except redis.ConnectionError:
+    except redis.ConnectionError as e:
+        logger.error(f"[health] Redis connection error: {e}")
         status["redis"] = False
 
     logger.info(f"[health] Health check: {status}")
