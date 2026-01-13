@@ -36,6 +36,7 @@ class ServerInstance(models.Model):
     IP_VERSION_CHOICES = [
         ("ipv4", "IPv4"),
         ("ipv6", "IPv6"),
+        ("both", "IPv4 et IPv6"),
     ]
 
     name = models.CharField(max_length=100, verbose_name="Nom du serveur")
