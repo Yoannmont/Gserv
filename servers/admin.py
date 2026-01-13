@@ -77,7 +77,7 @@ class ServerInstanceAdmin(admin.ModelAdmin):
         ),
         (
             "Configuration réseau",
-            {"fields": ("port", "additional_ports", "max_players")},
+            {"fields": ("port", "additional_ports", "max_players", "ip_version")},
         ),
         ("Statut", {"fields": ("status", "container_id")}),
         (

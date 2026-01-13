@@ -33,6 +33,11 @@ class ServerInstance(models.Model):
 
     ACTIVE_STATUS = [CREATING, CREATED, STARTING, RUNNING, UPDATING]
 
+    IP_VERSION_CHOICES = [
+        ("ipv4", "IPv4"),
+        ("ipv6", "IPv6"),
+    ]
+
     name = models.CharField(max_length=100, verbose_name="Nom du serveur")
     game = models.ForeignKey(Game, on_delete=models.PROTECT, related_name="servers", verbose_name="Jeu")
     game_version = models.ForeignKey(
@@ -71,6 +76,12 @@ class ServerInstance(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Date de création")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Dernière modification")
     last_started_at = models.DateTimeField(null=True, blank=True, verbose_name="Dernier démarrage")
+    ip_version = models.CharField(
+        max_length=10,
+        choices=IP_VERSION_CHOICES,
+        default="both",  # both means both ipv4 and ipv6
+        verbose_name="Version IP",
+    )
 
     class Meta:
         verbose_name = "Instance de serveur"
@@ -87,14 +98,21 @@ class ServerInstance(models.Model):
     def get_all_port_mappings(self):
         """Return all port mappings for this server"""
         mappings = {}
+        ip_version = self.ip_version
+        if ip_version == "ipv4":
+            host_port = ("0.0.0.0", self.port)
+        elif ip_version == "ipv6":
+            host_port = ("::", self.port)
+        else:
+            host_port = self.port
 
         port_num, protocol = self.game.parse_default_port()
 
         if protocol == "both":
-            mappings[f"{port_num}/tcp"] = self.port
-            mappings[f"{port_num}/udp"] = self.port
+            mappings[f"{port_num}/tcp"] = host_port
+            mappings[f"{port_num}/udp"] = host_port
         else:
-            mappings[f"{port_num}/{protocol}"] = self.port
+            mappings[f"{port_num}/{protocol}"] = host_port
 
         # Additional ports
         for game_port_info in self.game.additional_ports:
