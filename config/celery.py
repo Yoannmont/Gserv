@@ -65,8 +65,6 @@ def add_request_id(headers=None, **kwargs):
 # Add request_id to the logger
 @signals.task_prerun.connect
 def load_request_id(task=None, **kwargs):
-    request_id = (
-        task.request.headers.get("request_id") if task.request.headers else None
-    )
+    request_id = task.request.headers.get("request_id") if task.request.headers else None
     if request_id:
         local.request_id = request_id
