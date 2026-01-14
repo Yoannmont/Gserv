@@ -39,10 +39,10 @@ app.conf.beat_schedule = {
         "task": "docker_manager.tasks.cleanup_old_status_history",
         "schedule": crontab(hour=2, minute=0, day_of_week=1),
     },
-    "delete-unused-containers": {
-        "task": "docker_manager.tasks.delete_unused_containers",
-        "schedule": crontab(hour=1, minute=0),
-    },
+    # "delete-unused-containers": {
+    #     "task": "docker_manager.tasks.delete_unused_containers",
+    #     "schedule": crontab(hour=1, minute=0),
+    # },
     "auto-backup-servers": {
         "task": "docker_manager.tasks.auto_backup_servers",
         "schedule": crontab(hour=3, minute=30),
@@ -65,6 +65,8 @@ def add_request_id(headers=None, **kwargs):
 # Add request_id to the logger
 @signals.task_prerun.connect
 def load_request_id(task=None, **kwargs):
-    request_id = task.request.headers.get("request_id") if task.request.headers else None
+    request_id = (
+        task.request.headers.get("request_id") if task.request.headers else None
+    )
     if request_id:
         local.request_id = request_id

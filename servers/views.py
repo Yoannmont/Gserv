@@ -15,7 +15,11 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound, PermissionDenied
 from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.response import Response
-from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
+from rest_framework.throttling import (
+    AnonRateThrottle,
+    SimpleRateThrottle,
+    UserRateThrottle,
+)
 
 import docker_manager
 import docker_manager.services
@@ -99,6 +103,20 @@ class IsServerRole(permissions.BasePermission):
         return False
 
 
+class BackupCreateThrottle(SimpleRateThrottle):
+    """Throttle pour limiter la création de backups à 1 requête par 30 secondes"""
+
+    scope = "backup_create"
+    rate = "1/30s"
+
+    def get_cache_key(self, request, view):
+        if request.user and request.user.is_authenticated:
+            ident = request.user.pk
+        else:
+            ident = self.get_ident(request)
+        return self.cache_format % {"scope": self.scope, "ident": ident}
+
+
 class ServerInstanceViewSet(viewsets.ModelViewSet):
     queryset = ServerInstance.objects.all()
     serializer_class = ServerInstanceListSerializer
@@ -131,6 +149,11 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
         if self.action in ["create", "update", "partial_update"]:
             return ServerInstanceSerializer
         return ServerInstanceDetailSerializer
+
+    def get_throttles(self):
+        if self.action == "backups" and self.request.method == "POST":
+            return [BackupCreateThrottle()]
+        return super().get_throttles()
 
     def list(self, request, *args, **kwargs):
         logger.info("[servers_instance_list] Server instance list request")
