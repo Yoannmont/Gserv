@@ -107,7 +107,7 @@ class BackupCreateThrottle(SimpleRateThrottle):
     """Throttle pour limiter la création de backups à 1 requête par 30 secondes"""
 
     scope = "backup_create"
-    rate = "1/30s"
+    rate = "1/m"
 
     def get_cache_key(self, request, view):
         if request.user and request.user.is_authenticated:
