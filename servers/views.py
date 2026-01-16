@@ -775,28 +775,62 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["get", "post"], url_path="backups")
     def backups(self, request, pk=None):
         """List or create a backup request for this server."""
+
         server = self.get_object()
 
         if request.method.lower() == "get":
+            logger.info(f"[servers_instance_backup] Getting backups for server {server.id}")
+
             backups = server.backups.all().order_by("-created_at")
             serializer = ServerBackupSerializer(backups, many=True)
             return Response(serializer.data)
 
-        # POST: request a backup
-        name = request.data.get("name", f"backup-{server.name}-{timezone.now().strftime('%Y%m%d-%H%M%S')}")
-        description = request.data.get("description", "")
+        elif request.method.lower() == "post":
+            logger.info(f"[servers_instance_backup] Creating backup for server {server.id}")
+            # POST: request a backup
+            name = request.data.get(
+                "name",
+                f"backup-{server.name}-{timezone.now().strftime('%Y%m%d-%H%M%S')}",
+            )
+            description = request.data.get("description", "")
 
-        if server.backups.count() >= settings.MAX_BACKUPS:
+            if server.backups.count() >= settings.MAX_BACKUPS:
+                return Response(
+                    {"error": "Le nombre maximum de sauvegardes a été atteint"},
+                    status=status.HTTP_409_CONFLICT,
+                )
+
+            create_backup_task.delay(server.id, request.user.id, name, description, False)
             return Response(
-                {"error": "Le nombre maximum de sauvegardes a été atteint"},
-                status=status.HTTP_409_CONFLICT,
+                {"message": "Sauvegarde demandée, elle sera exécutée en arrière-plan."},
+                status=status.HTTP_202_ACCEPTED,
             )
 
-        create_backup_task.delay(server.id, request.user.id, name, description, False)
-        return Response(
-            {"message": "Sauvegarde demandée, elle sera exécutée en arrière-plan."},
-            status=status.HTTP_202_ACCEPTED,
-        )
+    @action(detail=True, methods=["patch"], url_path=r"backups/(?P<backup_id>[^/.]+)")
+    def update_backup(self, request, pk=None, backup_id=None):
+        logger.info(f"[servers_instance_update_backup] Update backup request id={backup_id}")
+        try:
+            server = self.get_object()
+            backup = self._get_backup_or_404(server, backup_id)
+            serializer = ServerBackupSerializer(backup, data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except NotFound:
+            logger.warning(f"[servers_instance_update_backup] Backup not found id={backup_id}")
+            return Response({"error": "Sauvegarde non trouvée"}, status=status.HTTP_404_NOT_FOUND)
+        except DRFValidationError as e:
+            logger.warning(f"[servers_instance_update_backup] Validation error id={backup_id} errors={e.detail}")
+            return Response(
+                {"error": "Erreur de validation", "details": e.detail},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as e:
+            logger.error(f"[servers_instance_update_backup] Unexpected error id={backup_id} error={str(e)}")
+            return Response(
+                {"error": "Erreur lors de la mise à jour de la sauvegarde"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     @action(
         detail=True,
@@ -815,22 +849,31 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
 
     @action(
         detail=True,
-        methods=["delete"],
+        methods=["patch", "delete"],
         url_path=r"backups/(?P<backup_id>[^/.]+)",
     )
-    def delete_backup(self, request, pk=None, backup_id=None):
+    def edit_or_delete_backup(self, request, pk=None, backup_id=None):
         server = self.get_object()
         backup = self._get_backup_or_404(server, backup_id)
 
-        backup_path = backup.absolute_path
-        if os.path.exists(backup_path):
-            try:
-                os.remove(backup_path)
-            except Exception as exc:
-                logger.warning(f"[servers_delete_backup] Failed to delete file {backup_path}: {exc}")
+        if request.method.lower() == "patch":
+            logger.info(f"[servers_instance_edit_or_delete_backup] Updating backup {backup.id} for server {server.id}")
+            serializer = ServerBackupSerializer(backup, data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        elif request.method.lower() == "delete":
+            logger.info(f"[servers_instance_edit_or_delete_backup] Deleting backup {backup.id} for server {server.id}")
+            backup_path = backup.absolute_path
+            if os.path.exists(backup_path):
+                try:
+                    os.remove(backup_path)
+                except Exception as exc:
+                    logger.warning(f"[servers_delete_backup] Failed to delete file {backup_path}: {exc}")
 
-        backup.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+            backup.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response({"error": "Méthode invalide"}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
     @action(
         detail=True,
