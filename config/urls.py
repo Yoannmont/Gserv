@@ -23,7 +23,7 @@ urlpatterns = [
         "gserv/",
         include(
             [
-                path("admin/", admin.site.urls),
+                path("gserv-console/", admin.site.urls),
                 path("api/", include("api.urls")),
                 path(
                     "swagger<format>/",

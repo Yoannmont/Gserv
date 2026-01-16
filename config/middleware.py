@@ -15,7 +15,7 @@ class AdminIPRestrictionMiddleware(MiddlewareMixin):
     CACHE_TIMEOUT = 300
 
     def process_request(self, request):
-        if not request.path.startswith("/admin/"):
+        if not request.path.startswith("/gserv-console/"):
             return None
 
         if getattr(settings, "ADMIN_IP_RESTRICTION_DISABLED_IN_DEBUG", False) and settings.DEBUG:
