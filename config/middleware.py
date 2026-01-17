@@ -69,7 +69,7 @@ class OriginRestrictionMiddleware:
     def __call__(self, request):
         origin = request.headers.get("Origin")
 
-        if not request.path.startswith("/gserv-console/") and (not origin or origin not in settings.CORS_ALLOWED_ORIGINS):
+        if "/gserv/gserv-console/" not in request.path and (not origin or origin not in settings.CORS_ALLOWED_ORIGINS):
             return HttpResponseForbidden("Origin not allowed")
 
         return self.get_response(request)
