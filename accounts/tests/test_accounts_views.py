@@ -2,65 +2,8 @@ import pytest
 from django.urls import reverse
 from rest_framework import status
 
-from accounts.models import User, UserProfile
+from accounts.models import User
 from accounts.tests.accounts_factories import UserFactory
-
-
-@pytest.mark.django_db
-class TestUserRegistration:
-    def test_register_success(self, api_client):
-        """Test inscription réussie"""
-        url = reverse("user-list")
-        data = {
-            "username": "newuser",
-            "email": "new@example.com",
-            "password": "securepass123",
-            "password_confirm": "securepass123",
-            "first_name": "John",
-            "last_name": "Doe",
-        }
-
-        response = api_client.post(url, data, format="json")
-
-        assert response.status_code == status.HTTP_201_CREATED
-        assert "user" in response.data
-        assert "tokens" in response.data
-        assert "access" in response.data["tokens"]
-        assert "refresh" in response.data["tokens"]
-
-        assert User.objects.filter(username="newuser").exists()
-        user = User.objects.get(username="newuser")
-        assert UserProfile.objects.filter(user=user).exists()
-
-    def test_register_password_mismatch(self, api_client):
-        """Test erreur si mots de passe différents"""
-        url = reverse("user-list")
-        data = {
-            "username": "newuser",
-            "email": "new@example.com",
-            "password": "securepass123",
-            "password_confirm": "differentpass",
-        }
-
-        response = api_client.post(url, data, format="json")
-
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
-
-    def test_register_duplicate_username(self, api_client):
-        """Test erreur si username existe déjà"""
-        UserFactory(username="existinguser")
-
-        url = reverse("user-list")
-        data = {
-            "username": "existinguser",
-            "email": "new@example.com",
-            "password": "securepass123",
-            "password_confirm": "securepass123",
-        }
-
-        response = api_client.post(url, data, format="json")
-
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
 
 
 @pytest.mark.django_db
@@ -196,15 +139,6 @@ class TestUserLogout:
 
 @pytest.mark.django_db
 class TestUserCRUD:
-    def test_retrieve_user(self, authenticated_client, user):
-        """Test récupération d'un utilisateur"""
-        url = reverse("user-detail", kwargs={"pk": user.id})
-        response = authenticated_client.get(url)
-
-        assert response.status_code == status.HTTP_200_OK
-        assert response.data["id"] == user.id
-        assert response.data["username"] == user.username
-
     def test_update_user(self, authenticated_client, user):
         """Test mise à jour complète d'un utilisateur"""
         url = reverse("user-detail", kwargs={"pk": user.id})

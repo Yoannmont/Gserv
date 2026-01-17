@@ -339,6 +339,11 @@ class Prod(Dev):
     DEBUG = values.BooleanValue(default=False)
     ALLOWED_HOSTS = values.ListValue(environ_required=True)
 
+    MIDDLEWARE = [
+        "config.middleware.OriginRestrictionMiddleware",
+        *Dev.MIDDLEWARE,
+    ]
+
     SECURE_SSL_REDIRECT = values.BooleanValue(default=True, environ_prefix=None)
     SESSION_COOKIE_SECURE = values.BooleanValue(default=True, environ_prefix=None)
     CSRF_COOKIE_SECURE = values.BooleanValue(default=True, environ_prefix=None)

@@ -60,3 +60,18 @@ class AdminIPRestrictionMiddleware(MiddlewareMixin):
                 return True
 
         return ip_address in allowed_ips
+
+
+
+
+class OriginRestrictionMiddleware:
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        origin = request.headers.get("Origin")
+
+        if not origin or origin not in settings.CORS_ALLOWED_ORIGINS:
+            return HttpResponseForbidden("Origin not allowed")
+
+        return self.get_response(request)

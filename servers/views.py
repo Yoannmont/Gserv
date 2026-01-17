@@ -16,7 +16,6 @@ from rest_framework.exceptions import NotFound, PermissionDenied
 from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.response import Response
 from rest_framework.throttling import (
-    AnonRateThrottle,
     SimpleRateThrottle,
     UserRateThrottle,
 )
@@ -121,7 +120,7 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
     queryset = ServerInstance.objects.all()
     serializer_class = ServerInstanceListSerializer
     permission_classes = [permissions.IsAuthenticated, IsServerRole]
-    throttle_classes = [AnonRateThrottle, UserRateThrottle]
+    throttle_classes = [UserRateThrottle]
     filter_backends = [
         DjangoFilterBackend,
         filters.SearchFilter,

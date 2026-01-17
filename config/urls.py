@@ -40,7 +40,7 @@ urlpatterns = [
                     schema_view.with_ui("redoc", cache_timeout=0),
                     name="schema-redoc",
                 ),
-                path("health/", views.health, name="health"),  # localhost only
+                path("health/", views.health, name="health"),
             ]
         ),
     ),
