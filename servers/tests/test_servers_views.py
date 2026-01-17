@@ -226,6 +226,28 @@ class TestServerInstanceViewSet:
         server.refresh_from_db()
         assert server.name == "Partially Updated"
 
+    def test_create_server_exceeds_max_servers_per_user(self, authenticated_client, user, patched_docker_service, fake_container):
+        ServerInstanceFactory.create_batch(2, owner=user)
+        game = GameFactory()
+        version = GameVersionFactory(game=game)
+
+        url = reverse("server-list")
+        data = {
+            "name": "My Server",
+            "game": game.id,
+            "game_version": version.id,
+            "description": "Test server",
+            "port": 25565,
+            "max_players": 20,
+            "auto_start": False,
+            "auto_update": True,
+            "is_public": True,
+        }
+        response = authenticated_client.post(url, data=data, format="json")
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "Vous avez atteint le nombre maximum de serveurs" in response.data["error"]
+
 
 @pytest.mark.django_db
 class TestServerActions:

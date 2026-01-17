@@ -169,6 +169,14 @@ class ServerInstanceViewSet(viewsets.ModelViewSet):
         name = request.data.get("name")
         logger.info(f"[servers_instance_create] Server instance create request name={name}")
         try:
+            user = request.user
+
+            if not user.is_admin and ServerInstance.objects.filter(owner=user).count() >= settings.MAX_SERVERS_PER_USER:
+                return Response(
+                    {"error": "Vous avez atteint le nombre maximum de serveurs"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
             response = super().create(request, *args, **kwargs)
             if response.status_code == 201:
                 server_id = response.data.get("id")

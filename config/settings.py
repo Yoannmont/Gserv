@@ -320,6 +320,11 @@ class Dev(Configuration):
         environ_prefix=None,
     )
     MAX_CPU_GLOBAL = values.FloatValue(default=None, help_text="CPU maximal global (ex: 8.0)", environ_prefix=None)
+    MAX_SERVERS_PER_USER = values.IntegerValue(
+        default=2,
+        help_text="Nombre maximum de serveurs par utilisateur non admin",
+        environ_prefix=None,
+    )
     # endregion
 
     # region swagger --------------------------------------------------------------------------------------
