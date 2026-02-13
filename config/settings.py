@@ -109,7 +109,7 @@ class Dev(Configuration):
         return {
             "default": dj_database_url.parse(
                 url=self.DB_URL,
-                conn_max_age=600,
+                conn_max_age=10,
                 conn_health_checks=True,
             )
         }
