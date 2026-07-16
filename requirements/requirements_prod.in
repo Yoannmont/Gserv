@@ -1,33 +1,33 @@
-django==6.0
+django==6.0.7
 
 django-admin-interface==0.32.0
 django-configurations[cache,database,email,search]==2.5.1
 django-cors-headers==4.9.0
-django-filter==25.2
-djangorestframework==3.16.1
+django-filter==26.1
+djangorestframework==3.17.1
 djangorestframework-simplejwt==5.5.1
 drf-yasg==1.21.11
 
 channels==4.3.2
 channels-redis==4.3.0
-daphne==4.2.1
+daphne==4.2.2
 
-uvicorn[standard]==0.40.0
+uvicorn[standard]==0.51.0
 python-dotenv==1.2.1
 
-redis==7.1.0
+redis==8.0.1
 
-docker==7.1.0
+docker==7.2.0
 
-celery==5.6.0
+celery==5.6.3
 
-Pillow==12.0.0
+pillow==12.3.0
 
-ipython==9.8.0
+ipython==9.15.0
 
-python-json-logger==4.0.0
+python-json-logger==4.1.0
 
 django-request-id==1.0.0
 
-mysqlclient==2.2.7
-psycopg2-binary==2.9.11
+mysqlclient==2.2.8
+psycopg2-binary==2.9.12
