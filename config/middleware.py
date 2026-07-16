@@ -18,7 +18,10 @@ class AdminIPRestrictionMiddleware(MiddlewareMixin):
         if not request.path.startswith("/gserv-console/"):
             return None
 
-        if getattr(settings, "ADMIN_IP_RESTRICTION_DISABLED_IN_DEBUG", False) and settings.DEBUG:
+        if (
+            getattr(settings, "ADMIN_IP_RESTRICTION_DISABLED_IN_DEBUG", False)
+            and settings.DEBUG
+        ):
             return None
 
         ip_address = self.get_client_ip(request)
@@ -54,7 +57,11 @@ class AdminIPRestrictionMiddleware(MiddlewareMixin):
             try:
                 from accounts.models import AllowedAdminIP
 
-                allowed_ips = set(AllowedAdminIP.objects.filter(is_active=True).values_list("ip_address", flat=True))
+                allowed_ips = set(
+                    AllowedAdminIP.objects.filter(is_active=True).values_list(
+                        "ip_address", flat=True
+                    )
+                )
                 cache.set(self.CACHE_KEY, allowed_ips, self.CACHE_TIMEOUT)
             except (OperationalError, ProgrammingError):
                 return True
@@ -67,13 +74,13 @@ class OriginRestrictionMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
-        origin = request.headers.get("Origin")
+        # origin = request.headers.get("Origin")
 
-        if (
-            not request.path.startswith("/gserv/gserv-console/")
-            and not request.path.startswith("/gserv/health/")
-            and (not origin or origin not in settings.CORS_ALLOWED_ORIGINS)
-        ):
-            return HttpResponseForbidden("Origin not allowed")
+        # if (
+        #     not request.path.startswith("/gserv/gserv-console/")
+        #     and not request.path.startswith("/gserv/health/")
+        #     and (not origin or origin not in settings.CORS_ALLOWED_ORIGINS)
+        # ):
+        #     return HttpResponseForbidden("Origin not allowed")
 
         return self.get_response(request)
