@@ -1,4 +1,5 @@
 import os
+from unittest import mock
 from unittest.mock import patch
 
 import pytest
@@ -50,7 +51,10 @@ class TestServerBackupsAPI:
             created_by=user,
         )
 
-        url = reverse("server-delete-backup", kwargs={"pk": server.id, "backup_id": backup.id})
+        url = reverse(
+            "server-edit-or-delete-backup",
+            kwargs={"pk": server.id, "backup_id": backup.id},
+        )
         response = authenticated_client.delete(url)
 
         assert response.status_code == status.HTTP_204_NO_CONTENT
@@ -59,14 +63,20 @@ class TestServerBackupsAPI:
 
     def test_create_backup_with_max_backups(self, authenticated_client, user, prepare_servers_data_path):
         server = ServerInstanceFactory(owner=user)
-        for i in range(settings.MAX_BACKUPS):
-            ServerBackup.objects.create(server=server, name=f"backup-{i}", description="Test", created_by=user)
+        with mock.patch("servers.views.BackupCreateThrottle.rate", "50/s"):
+            for i in range(settings.MAX_BACKUPS):
+                ServerBackup.objects.create(
+                    server=server,
+                    name=f"backup-{i}",
+                    description="Test",
+                    created_by=user,
+                )
 
-        url = reverse("server-backups", kwargs={"pk": server.id})
-        response = authenticated_client.post(url, {"name": "backup-1", "description": "Test"}, format="json")
+            url = reverse("server-backups", kwargs={"pk": server.id})
+            response = authenticated_client.post(url, {"name": "backup-1", "description": "Test"}, format="json")
 
-        assert response.status_code == status.HTTP_409_CONFLICT
-        assert response.data["error"] == "Le nombre maximum de sauvegardes a été atteint"
+            assert response.status_code == status.HTTP_409_CONFLICT
+            assert response.data["error"] == "Le nombre maximum de sauvegardes a été atteint"
 
     def test_download_backup_unauthenticated(self, authenticated_client, api_client, user, prepare_servers_data_path):
         server = ServerInstanceFactory(owner=user)
@@ -114,3 +124,18 @@ class TestServerBackupsAPI:
 
         assert response.status_code == status.HTTP_403_FORBIDDEN
         assert response.data["error"] == "Lien expiré ou invalide"
+
+    def test_update_backup(self, authenticated_client, user, prepare_servers_data_path):
+        server = ServerInstanceFactory(owner=user)
+        backup = ServerBackup.objects.create(server=server, name="backup-1", description="Test", created_by=user)
+
+        url = reverse(
+            "server-edit-or-delete-backup",
+            kwargs={"pk": server.id, "backup_id": backup.id},
+        )
+        response = authenticated_client.patch(url, {"name": "backup-2", "description": "Test 2"}, format="json")
+
+        assert response.status_code == status.HTTP_200_OK
+        backup.refresh_from_db()
+        assert backup.name == "backup-2"
+        assert backup.description == "Test 2"

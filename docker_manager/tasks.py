@@ -4,7 +4,7 @@ from datetime import timedelta
 
 from celery import shared_task
 from django.conf import settings
-from django.db import transaction
+from django.db import close_old_connections, transaction
 from django.utils import timezone
 from django.utils.text import slugify
 
@@ -20,6 +20,7 @@ def create_server_task(self, server_id):
     Args:
         server_id: ID of the server to create
     """
+    close_old_connections()
     try:
         from docker_manager.services.server_manager import get_server_manager
         from servers.models import ServerInstance
@@ -47,6 +48,7 @@ def start_server_task(self, server_id: int, user_id: int = None):
     Args:
         server_id: ID of the server to start
     """
+    close_old_connections()
     try:
         from accounts.models import User
         from docker_manager.services.server_manager import get_server_manager
@@ -103,6 +105,7 @@ def stop_server_task(self, server_id: int, user_id: int = None):
         server_id: Server ID
         user_id: ID of the user stopping the server (optional)
     """
+    close_old_connections()
     try:
         from accounts.models import User
         from docker_manager.services.server_manager import get_server_manager
@@ -144,6 +147,7 @@ def restart_server_task(self, server_id: int, user_id: int = None):
         server_id: Server ID
         user_id: ID of the user restarting the server (optional)
     """
+    close_old_connections()
     try:
         from accounts.models import User
         from docker_manager.services.server_manager import get_server_manager
@@ -186,6 +190,7 @@ def update_server_task(self, server_id: int, new_version_id: int = None, user_id
         new_version_id: ID of the new version (optional)
         user_id: User ID (optional)
     """
+    close_old_connections()
     try:
         from accounts.models import User
         from docker_manager.services.server_manager import get_server_manager
@@ -246,6 +251,7 @@ def full_reset_server_task(self, server_id: int, delete_data: bool = False, user
         delete_data: If True, delete server data
         user_id: User ID (optional)
     """
+    close_old_connections()
     try:
         from accounts.models import User
         from docker_manager.services.server_manager import get_server_manager
@@ -331,6 +337,7 @@ def create_backup_task(
     """
     import zipfile
 
+    close_old_connections()
     try:
         from accounts.models import User
         from servers.models import ServerBackup, ServerInstance
@@ -400,6 +407,7 @@ def restore_backup_task(self, server_id: int, backup_id: int, user_id: int = Non
     """
     import zipfile
 
+    close_old_connections()
     try:
         from accounts.models import User
         from docker_manager.services.server_manager import get_server_manager
@@ -462,6 +470,7 @@ def auto_backup_servers():
     """
     Create nightly backups for all servers.
     """
+    close_old_connections()
     from servers.models import ServerInstance
 
     now = timezone.now()
@@ -481,6 +490,7 @@ def cleanup_old_backups():
     Cleanup only auto backups (created_by=None) older than 7 days.
     User-created backups are never deleted by this task.
     """
+    close_old_connections()
     from servers.models import ServerInstance
 
     for server in ServerInstance.objects.all():
@@ -492,6 +502,7 @@ def collect_server_metrics():
     """
     Collect metrics from all running servers
     """
+    close_old_connections()
     try:
         from docker_manager.services.server_manager import get_server_manager
         from servers.models import ServerInstance, ServerMetrics
@@ -530,6 +541,7 @@ def check_auto_update_servers():
     """
     Check and update servers with auto_update=True
     """
+    close_old_connections()
     try:
         from games.models import GameVersion
         from servers.models import ServerInstance
@@ -565,6 +577,7 @@ def cleanup_old_metrics():
     Clean up old metrics (> 7 days)
 
     """
+    close_old_connections()
     try:
         from datetime import timedelta
 
@@ -584,6 +597,7 @@ def cleanup_old_status_history():
     """
     Clean up old status history (> 30 days)
     """
+    close_old_connections()
     try:
         from datetime import timedelta
 
@@ -603,6 +617,7 @@ def sync_container_status():
     """
     Synchronize server status with Docker using health check command or container status
     """
+    close_old_connections()
     try:
         from docker_manager.services.server_manager import get_server_manager
         from servers.models import ServerInstance, ServerStatus
@@ -649,6 +664,7 @@ def delete_unused_containers():
     """
     Delete unused containers
     """
+    close_old_connections()
     try:
         from docker_manager.services.server_manager import get_server_manager
 

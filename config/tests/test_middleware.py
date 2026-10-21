@@ -22,7 +22,7 @@ class TestAdminIPRestrictionMiddleware:
 
     def test_admin_path_without_allowed_ip_blocked(self):
         request = HttpRequest()
-        request.path = "/admin/"
+        request.path = "/gserv-console/"
         request.META = {"REMOTE_ADDR": "192.168.1.100"}
 
         response = self.middleware.process_request(request)
@@ -34,7 +34,7 @@ class TestAdminIPRestrictionMiddleware:
         AllowedAdminIP.objects.create(ip_address="192.168.1.100", is_active=True)
 
         request = HttpRequest()
-        request.path = "/admin/"
+        request.path = "/gserv-console/"
         request.META = {"REMOTE_ADDR": "192.168.1.100"}
 
         response = self.middleware.process_request(request)
@@ -46,7 +46,7 @@ class TestAdminIPRestrictionMiddleware:
         AllowedAdminIP.objects.create(ip_address="192.168.1.100", is_active=False)
 
         request = HttpRequest()
-        request.path = "/admin/"
+        request.path = "/gserv-console/"
         request.META = {"REMOTE_ADDR": "192.168.1.100"}
 
         response = self.middleware.process_request(request)
@@ -57,7 +57,7 @@ class TestAdminIPRestrictionMiddleware:
     @override_settings(DEBUG=True, ADMIN_IP_RESTRICTION_DISABLED_IN_DEBUG=True)
     def test_debug_mode_bypasses_restriction(self):
         request = HttpRequest()
-        request.path = "/admin/"
+        request.path = "/gserv-console/"
         request.META = {"REMOTE_ADDR": "192.168.1.100"}
 
         response = self.middleware.process_request(request)
@@ -88,7 +88,7 @@ class TestAdminIPRestrictionMiddleware:
         AllowedAdminIP.objects.create(ip_address="10.0.0.1", is_active=True)
 
         request = HttpRequest()
-        request.path = "/admin/"
+        request.path = "/gserv-console/"
         request.META = {"REMOTE_ADDR": "10.0.0.1"}
 
         response = self.middleware.process_request(request)
@@ -98,7 +98,7 @@ class TestAdminIPRestrictionMiddleware:
 
     def test_cache_invalidation_after_ip_added(self):
         request = HttpRequest()
-        request.path = "/admin/"
+        request.path = "/gserv-console/"
         request.META = {"REMOTE_ADDR": "192.168.1.100"}
 
         response = self.middleware.process_request(request)
@@ -114,7 +114,7 @@ class TestAdminIPRestrictionMiddleware:
 
     def test_admin_subpath_blocked(self):
         request = HttpRequest()
-        request.path = "/admin/accounts/user/"
+        request.path = "/gserv-console/accounts/user/"
         request.META = {"REMOTE_ADDR": "192.168.1.100"}
 
         response = self.middleware.process_request(request)
@@ -125,7 +125,7 @@ class TestAdminIPRestrictionMiddleware:
         AllowedAdminIP.objects.create(ip_address="2001:db8::1", is_active=True)
 
         request = HttpRequest()
-        request.path = "/admin/"
+        request.path = "/gserv-console/"
         request.META = {"REMOTE_ADDR": "2001:db8::1"}
 
         response = self.middleware.process_request(request)

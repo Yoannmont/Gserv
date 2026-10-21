@@ -16,7 +16,6 @@ from accounts.models import User
 from accounts.serializers import (
     PasswordChangeSerializer,
     TokenObtainSerializer,
-    UserCreateSerializer,
     UserSerializer,
     UserUpdateSerializer,
 )
@@ -44,97 +43,20 @@ class CustomTokenObtainPairView(TokenObtainPairView):
             raise
 
 
-class UserViewSet(viewsets.ModelViewSet):
+class UserViewSet(
+    viewsets.GenericViewSet,
+    viewsets.mixins.UpdateModelMixin,
+    viewsets.mixins.DestroyModelMixin,
+):
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
     throttle_classes = [UserRateThrottle]
 
     def get_serializer_class(self):
-        if self.action == "create":
-            return UserCreateSerializer
         if self.action in ["update", "partial_update"]:
             return UserUpdateSerializer
         return UserSerializer
-
-    def get_permissions(self):
-        if self.action == "create":
-            return [permissions.AllowAny()]
-        return super().get_permissions()
-
-    def create(self, request, *args, **kwargs):
-        """
-        Create a new user account and generate JWT tokens.
-
-        This method handles user registration with atomic transaction to ensure
-        data consistency. Upon successful creation, it generates both refresh
-        and access tokens for immediate authentication.
-
-        Returns:
-            Response containing user data and JWT tokens (refresh + access)
-        """
-        email = request.data.get("email")
-        username = request.data.get("username")
-        logger.info(f"[accounts_user_create] User registration request email={email} username={username}")
-        try:
-            serializer = self.get_serializer(data=request.data)
-            serializer.is_valid(raise_exception=True)
-            with transaction.atomic():
-                user = serializer.save()
-                refresh = RefreshToken.for_user(user)
-            logger.info(f"[accounts_user_create] User created successfully id={user.id} email={user.email} username={username}")
-
-            return Response(
-                {
-                    "user": UserSerializer(user).data,
-                    "tokens": {
-                        "refresh": str(refresh),
-                        "access": str(refresh.access_token),
-                    },
-                },
-                status=status.HTTP_201_CREATED,
-            )
-        except DRFValidationError as e:
-            logger.warning(f"[accounts_user_create] Validation error email={email} username={username} errors={e.detail}")
-            return Response(
-                {"error": "Erreur de validation", "details": e.detail},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        except IntegrityError as e:
-            logger.error(f"[accounts_user_create] Integrity error email={email} username={username} error={str(e)}")
-            return Response(
-                {"error": "Un utilisateur avec cet email ou ce nom d'utilisateur existe déjà"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        except Exception as e:
-            logger.error(f"[accounts_user_create] Unexpected error email={email} username={username} error={str(e)}")
-            return Response(
-                {"error": "Une erreur est survenue lors de la création du compte"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-    def list(self, request, *args, **kwargs):
-        logger.info("[accounts_user_list] User list request")
-        try:
-            return super().list(request, *args, **kwargs)
-        except Exception as e:
-            logger.error(f"[accounts_user_list] Error listing users, error={str(e)}")
-            return Response(
-                {"error": "Une erreur est survenue lors de la récupération des utilisateurs"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-    def retrieve(self, request, *args, **kwargs):
-        user_id = kwargs.get("pk")
-        logger.info(f"[accounts_user_retrieve] User retrieve request id={user_id}")
-        try:
-            return super().retrieve(request, *args, **kwargs)
-        except Exception as e:
-            logger.error(f"[accounts_user_retrieve] Error retrieving user id={user_id} error={str(e)}")
-            return Response(
-                {"error": "Une erreur est survenue lors de la récupération de l'utilisateur"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
 
     def update(self, request, *args, **kwargs):
         user_id = kwargs.get("pk")

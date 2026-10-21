@@ -23,7 +23,7 @@ urlpatterns = [
         "gserv/",
         include(
             [
-                path("admin/", admin.site.urls),
+                path("gserv-console/", admin.site.urls),
                 path("api/", include("api.urls")),
                 path(
                     "swagger<format>/",
@@ -40,7 +40,7 @@ urlpatterns = [
                     schema_view.with_ui("redoc", cache_timeout=0),
                     name="schema-redoc",
                 ),
-                path("health/", views.health, name="health"),  # localhost only
+                path("health/", views.health, name="health"),
             ]
         ),
     ),

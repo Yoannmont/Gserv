@@ -109,7 +109,7 @@ class Dev(Configuration):
         return {
             "default": dj_database_url.parse(
                 url=self.DB_URL,
-                conn_max_age=600,
+                conn_max_age=10,
                 conn_health_checks=True,
             )
         }
@@ -320,6 +320,11 @@ class Dev(Configuration):
         environ_prefix=None,
     )
     MAX_CPU_GLOBAL = values.FloatValue(default=None, help_text="CPU maximal global (ex: 8.0)", environ_prefix=None)
+    MAX_SERVERS_PER_USER = values.IntegerValue(
+        default=2,
+        help_text="Nombre maximum de serveurs par utilisateur non admin",
+        environ_prefix=None,
+    )
     # endregion
 
     # region swagger --------------------------------------------------------------------------------------
@@ -338,6 +343,11 @@ class Prod(Dev):
     SECRET_KEY = str(values.SecretValue())
     DEBUG = values.BooleanValue(default=False)
     ALLOWED_HOSTS = values.ListValue(environ_required=True)
+
+    MIDDLEWARE = [
+        "config.middleware.OriginRestrictionMiddleware",
+        *Dev.MIDDLEWARE,
+    ]
 
     SECURE_SSL_REDIRECT = values.BooleanValue(default=True, environ_prefix=None)
     SESSION_COOKIE_SECURE = values.BooleanValue(default=True, environ_prefix=None)

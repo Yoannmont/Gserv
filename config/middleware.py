@@ -15,7 +15,7 @@ class AdminIPRestrictionMiddleware(MiddlewareMixin):
     CACHE_TIMEOUT = 300
 
     def process_request(self, request):
-        if not request.path.startswith("/admin/"):
+        if not request.path.startswith("/gserv-console/"):
             return None
 
         if getattr(settings, "ADMIN_IP_RESTRICTION_DISABLED_IN_DEBUG", False) and settings.DEBUG:
@@ -60,3 +60,20 @@ class AdminIPRestrictionMiddleware(MiddlewareMixin):
                 return True
 
         return ip_address in allowed_ips
+
+
+class OriginRestrictionMiddleware:
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        # origin = request.headers.get("Origin")
+
+        # if (
+        #     not request.path.startswith("/gserv/gserv-console/")
+        #     and not request.path.startswith("/gserv/health/")
+        #     and (not origin or origin not in settings.CORS_ALLOWED_ORIGINS)
+        # ):
+        #     return HttpResponseForbidden("Origin not allowed")
+
+        return self.get_response(request)

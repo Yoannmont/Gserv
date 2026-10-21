@@ -39,10 +39,10 @@ app.conf.beat_schedule = {
         "task": "docker_manager.tasks.cleanup_old_status_history",
         "schedule": crontab(hour=2, minute=0, day_of_week=1),
     },
-    "delete-unused-containers": {
-        "task": "docker_manager.tasks.delete_unused_containers",
-        "schedule": crontab(hour=1, minute=0),
-    },
+    # "delete-unused-containers": {
+    #     "task": "docker_manager.tasks.delete_unused_containers",
+    #     "schedule": crontab(hour=1, minute=0),
+    # },
     "auto-backup-servers": {
         "task": "docker_manager.tasks.auto_backup_servers",
         "schedule": crontab(hour=3, minute=30),
